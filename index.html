@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loganonymizer — Sichere Log- und Text-Anonymisierung</title>
+
+    <!-- Google Fonts: Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css?v=106">
+</head>
+<body>
+    <div class="app-shell">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1><span class="logo-glyph">🛡️</span>Loganonymizer</h1>
+                    <span class="version-badge">v103.0</span>
+                </div>
+                <p class="subtitle">Lokale Log- und Text-Anonymisierung mit KI-Anbindung</p>
+            </div>
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <i class="bi bi-file-text"></i>
+                    <span id="chars-processed">0</span>
+                    <small>Zeichen</small>
+                </div>
+                <div class="stat-item">
+                    <i class="bi bi-shield-check"></i>
+                    <span id="items-anonymized">0</span>
+                    <small>Anonymisiert</small>
+                </div>
+                <div class="stat-item">
+                    <i class="bi bi-clock-history"></i>
+                    <span id="processing-time">0ms</span>
+                    <small>Zeit</small>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tab-navigation">
+            <button class="tab-button active" data-tab="anonymize">
+                <i class="bi bi-shield-lock"></i>
+                Anonymisieren
+            </button>
+            <button class="tab-button" data-tab="deanonymize">
+                <i class="bi bi-unlock"></i>
+                De-Anonymisieren
+            </button>
+            <button class="tab-button" data-tab="ai-analysis">
+                <i class="bi bi-robot"></i>
+                KI-Analyse
+            </button>
+            <button class="tab-button" data-tab="ai-providers">
+                <i class="bi bi-cpu"></i>
+                KI-Provider
+            </button>
+            <button class="tab-button" data-tab="mappings">
+                <i class="bi bi-table"></i>
+                Zuordnungen
+            </button>
+            <button class="tab-button" data-tab="blacklist">
+                <i class="bi bi-ban"></i>
+                Blacklist
+            </button>
+            <button class="tab-button" data-tab="settings">
+                <i class="bi bi-gear"></i>
+                Einstellungen
+            </button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- ANONYMIZE TAB -->
+            <div id="anonymize" class="tab-content active">
+                <div class="content-header">
+                    <h2>🛡️ Text Anonymisieren</h2>
+                    <p>Entfernen Sie automatisch sensible Daten aus Ihrem Text</p>
+                </div>
+
+                <div class="editor-container">
+                    <div class="editor-panel">
+                        <div class="panel-header">
+                            <h3>📝 Originaltext</h3>
+                            <div class="button-group">
+                                <button onclick="pasteFromClipboard('input-text')" class="btn-icon" title="Aus Zwischenablage einfügen">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                                <button onclick="clearText('input-text')" class="btn-icon" title="Text löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <textarea 
+                            id="input-text" 
+                            class="form-control text-editor" 
+                            placeholder="Log oder Text einfügen, der anonymisiert werden soll...&#10;&#10;Beispiel:&#10;[2026-05-07 14:32:11] User Max Mustermann (max@example.com) login from 192.168.1.42&#10;Telefon: +49 30 12345678&#10;IBAN: DE44 5001 0517 5407 3249 31&#10;Auth token: eyJhbGc..."
+                            rows="15"
+                        ></textarea>
+                        <div class="panel-footer">
+                            <span class="char-count">
+                                <span id="input-char-count">0</span> Zeichen
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="editor-controls">
+                        <button onclick="anonymizeText()" class="btn-primary btn-large">
+                            <i class="bi bi-arrow-right"></i>
+                            Anonymisieren
+                        </button>
+                        <button onclick="swapTexts()" class="btn-icon" title="Texte tauschen">
+                            <i class="bi bi-arrow-left-right"></i>
+                        </button>
+                    </div>
+
+                    <div class="editor-panel">
+                        <div class="panel-header">
+                            <h3>✅ Anonymisierter Text</h3>
+                            <div class="button-group">
+                                <button onclick="copyToClipboard('output-text')" class="btn-icon" title="In Zwischenablage kopieren">
+                                    <i class="bi bi-clipboard-check"></i>
+                                </button>
+                                <button onclick="downloadText()" class="btn-icon" title="Als Datei herunterladen">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button onclick="clearText('output-text')" class="btn-icon" title="Text löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <textarea 
+                            id="output-text" 
+                            class="form-control text-editor" 
+                            placeholder="Der anonymisierte Text erscheint hier..."
+                            rows="15"
+                            readonly
+                        ></textarea>
+                        <div class="panel-footer">
+                            <span class="char-count">
+                                <span id="output-char-count">0</span> Zeichen
+                            </span>
+                            <span class="badge bg-success" id="items-found">0 Elemente gefunden</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Info -->
+                <div class="info-panel">
+                    <h4>🔍 Erkannte Elemente</h4>
+                    <div id="detection-summary" class="detection-summary">
+                        <span class="detection-badge">👤 Personen: <strong id="persons-count">0</strong></span>
+                        <span class="detection-badge">🏢 Organisationen: <strong id="orgs-count">0</strong></span>
+                        <span class="detection-badge">📧 E-Mails: <strong id="emails-count">0</strong></span>
+                        <span class="detection-badge">📱 Telefone: <strong id="phones-count">0</strong></span>
+                        <span class="detection-badge">🏦 IBANs: <strong id="ibans-count">0</strong></span>
+                        <span class="detection-badge">💳 Kreditkarten: <strong id="cards-count">0</strong></span>
+                        <span class="detection-badge">📍 Adressen: <strong id="addresses-count">0</strong></span>
+                        <span class="detection-badge">🔒 Blacklist: <strong id="blacklist-count">0</strong></span>
+                    </div>
+                </div>
+
+                <!-- Blacklist suggestions -->
+                <div class="info-panel suggestions-panel">
+                    <div class="suggestions-header">
+                        <h4>💡 Vorschläge für die Blacklist</h4>
+                        <div class="button-group">
+                            <button type="button" onclick="analyzeForSuggestions()" class="btn-secondary btn-sm" title="Eingabetext nach möglichen Blacklist-Begriffen analysieren">
+                                <i class="bi bi-search"></i> Analysieren
+                            </button>
+                            <button type="button" id="suggestions-add-all" onclick="addAllSuggestionsToBlacklist()" class="btn-secondary btn-sm" style="display:none">
+                                <i class="bi bi-check2-all"></i> Alle übernehmen
+                            </button>
+                        </div>
+                    </div>
+                    <p class="suggestions-hint text-muted">
+                        Auffällige Tokens aus dem Eingabetext, die nicht durch die Standard-Erkennung abgedeckt sind. Per Klick in die Blacklist übernehmen.
+                    </p>
+                    <div id="suggestions-list" class="suggestions-list">
+                        <p class="text-muted text-center">Noch keine Analyse durchgeführt — links Text einfügen oder „Analysieren" klicken.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DEANONYMIZE TAB -->
+            <div id="deanonymize" class="tab-content">
+                <div class="content-header">
+                    <h2>🔓 Text De-Anonymisieren</h2>
+                    <p>Stellen Sie die Original-Daten wieder her</p>
+                </div>
+
+                <div class="editor-container">
+                    <div class="editor-panel">
+                        <div class="panel-header">
+                            <h3>🔒 Anonymisierter Text</h3>
+                            <div class="button-group">
+                                <button onclick="pasteFromClipboard('deanon-input-text')" class="btn-icon" title="Aus Zwischenablage einfügen">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                                <button onclick="clearText('deanon-input-text')" class="btn-icon" title="Text löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <textarea 
+                            id="deanon-input-text" 
+                            class="form-control text-editor" 
+                            placeholder="Fügen Sie hier den anonymisierten Text ein..."
+                            rows="15"
+                        ></textarea>
+                    </div>
+
+                    <div class="editor-controls">
+                        <button onclick="deanonymizeText()" class="btn-primary btn-large">
+                            <i class="bi bi-arrow-right"></i>
+                            De-Anonymisieren
+                        </button>
+                    </div>
+
+                    <div class="editor-panel">
+                        <div class="panel-header">
+                            <h3>✅ Original Text</h3>
+                            <div class="button-group">
+                                <button onclick="copyToClipboard('deanon-output-text')" class="btn-icon" title="In Zwischenablage kopieren">
+                                    <i class="bi bi-clipboard-check"></i>
+                                </button>
+                                <button onclick="clearText('deanon-output-text')" class="btn-icon" title="Text löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <textarea 
+                            id="deanon-output-text" 
+                            class="form-control text-editor" 
+                            placeholder="Der de-anonymisierte Text erscheint hier..."
+                            rows="15"
+                            readonly
+                        ></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI ANALYSIS TAB -->
+            <div id="ai-analysis" class="tab-content">
+                <div class="content-header">
+                    <h2>🤖 KI-Analyse</h2>
+                    <p>Senden Sie anonymisierte Texte sicher an KI-Provider</p>
+                </div>
+
+                <div class="ai-container">
+                    <div class="ai-config-panel">
+                        <h3>⚙️ Konfiguration</h3>
+                        
+                        <div class="form-group">
+                            <label for="ai-provider">KI-Provider</label>
+                            <select id="ai-provider" class="form-control">
+                                <option value="">-- Provider auswählen --</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ai-model">Modell</label>
+                            <select id="ai-model" class="form-control">
+                                <option value="">-- Modell auswählen --</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="form-label-row">
+                                <label for="ai-prompt">Prompt/Anweisung</label>
+                                <div class="button-group">
+                                    <button type="button" onclick="loadPromptFromFile()" class="btn-icon" title="Prompt aus Datei laden">
+                                        <i class="bi bi-folder2-open"></i>
+                                    </button>
+                                    <button type="button" onclick="savePromptToFile()" class="btn-icon" title="Prompt als Datei speichern">
+                                        <i class="bi bi-floppy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea
+                                id="ai-prompt"
+                                class="form-control"
+                                rows="4"
+                                placeholder="Geben Sie hier Ihre Anweisung an die KI ein...&#10;&#10;Beispiel: Analysiere den folgenden Text und fasse die wichtigsten Punkte zusammen."
+                            ></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="auto-anonymize" checked>
+                                Text automatisch anonymisieren
+                            </label>
+                            <small class="form-text">Vor dem Senden automatisch sensible Daten entfernen</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="auto-deanonymize" checked>
+                                Antwort automatisch de-anonymisieren
+                            </label>
+                            <small class="form-text">Original-Daten in der Antwort wiederherstellen</small>
+                        </div>
+
+                        <button onclick="sendToAI()" class="btn-primary w-100">
+                            <i class="bi bi-send"></i>
+                            An KI senden
+                        </button>
+                    </div>
+
+                    <div class="ai-editor-panel">
+                        <div class="panel-header">
+                            <h3>📝 Eingabetext</h3>
+                            <div class="button-group">
+                                <button onclick="pasteFromClipboard('ai-input-text')" class="btn-icon" title="Aus Zwischenablage einfügen">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                                <button onclick="clearText('ai-input-text')" class="btn-icon" title="Text löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <textarea 
+                            id="ai-input-text" 
+                            class="form-control text-editor" 
+                            placeholder="Fügen Sie hier den Text ein, der an die KI gesendet werden soll..."
+                            rows="10"
+                        ></textarea>
+
+                        <div class="panel-header mt-4">
+                            <h3>💬 KI-Antwort</h3>
+                            <div class="button-group">
+                                <button onclick="copyToClipboard('ai-response-text')" class="btn-icon" title="In Zwischenablage kopieren">
+                                    <i class="bi bi-clipboard-check"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="ai-response-text" class="ai-response-box">
+                            <p class="text-muted text-center">Die KI-Antwort erscheint hier...</p>
+                        </div>
+
+                        <div class="history-section">
+                            <div class="history-header">
+                                <h3>📜 Verlauf</h3>
+                                <div class="button-group">
+                                    <button type="button" onclick="exportAIHistory()" class="btn-icon" title="Verlauf als JSON exportieren">
+                                        <i class="bi bi-download"></i>
+                                    </button>
+                                    <button type="button" onclick="clearAIHistory()" class="btn-icon" title="Verlauf leeren">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="ai-history-list" class="history-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI PROVIDERS TAB -->
+            <div id="ai-providers" class="tab-content">
+                <div class="content-header">
+                    <h2>🤖 KI-Provider Verwaltung</h2>
+                    <p>Konfigurieren Sie Ihre KI-Provider und API-Keys</p>
+                </div>
+
+                <div class="providers-container">
+                    <!-- Add Provider Form -->
+                    <div class="provider-form-panel">
+                        <h3>➕ Provider hinzufügen</h3>
+                        
+                        <div class="form-group">
+                            <label for="provider-name">Name</label>
+                            <input type="text" id="provider-name" class="form-control" placeholder="z.B. OpenAI">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="provider-type">Typ</label>
+                            <select id="provider-type" class="form-control">
+                                <option value="openai">ChatGPT (OpenAI)</option>
+                                <option value="anthropic">Claude (Anthropic)</option>
+                                <option value="google">Gemini (Google)</option>
+                                <option value="mammouth">Mammouth (Multi-Modell)</option>
+                                <option value="ollama">Ollama (lokal)</option>
+                                <option value="custom">Custom API</option>
+                            </select>
+                            <small class="form-text">
+                                <span id="provider-doc-link-wrap">
+                                    📖 <a id="provider-doc-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">API-Key bei OpenAI holen ↗</a>
+                                </span>
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="provider-api-key">API Key</label>
+                            <input type="password" id="provider-api-key" class="form-control" placeholder="sk-..." autocomplete="off">
+                            <small class="form-text">⚠️ API-Key wird im localStorage des Browsers im Klartext abgelegt. Nur auf vertrauenswürdigen Geräten verwenden. Für Ollama (lokal) leer lassen.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="provider-endpoint">Endpoint URL (optional)</label>
+                            <input type="url" id="provider-endpoint" class="form-control" placeholder="https://api.openai.com/v1">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="provider-models">Verfügbare Modelle (kommagetrennt)</label>
+                            <div class="input-group">
+                                <input type="text" id="provider-models" class="form-control" placeholder="gpt-4, gpt-3.5-turbo">
+                                <button type="button" id="ollama-test-btn" class="btn-secondary" style="display:none" onclick="testOllamaConnection()">🔍 Ollama testen</button>
+                            </div>
+                            <div id="ollama-status" class="ollama-status" style="display:none"></div>
+                        </div>
+
+                        <button onclick="addAIProvider()" class="btn-primary w-100">
+                            <i class="bi bi-plus-circle"></i>
+                            Provider speichern
+                        </button>
+                    </div>
+
+                    <!-- Provider List -->
+                    <div class="provider-list-panel">
+                        <h3>📋 Konfigurierte Provider</h3>
+                        <div id="providers-list" class="providers-list">
+                            <p class="text-muted text-center">Noch keine Provider konfiguriert</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MAPPINGS TAB -->
+            <div id="mappings" class="tab-content">
+                <div class="content-header">
+                    <h2>📊 Zuordnungen</h2>
+                    <p>Übersicht aller anonymisierten Elemente und ihrer Original-Werte</p>
+                </div>
+
+                <div class="mappings-container">
+                    <div class="mappings-header">
+                        <div class="button-group">
+                            <button onclick="exportMappings()" class="btn-secondary">
+                                <i class="bi bi-download"></i>
+                                Exportieren
+                            </button>
+                            <button onclick="importMappings()" class="btn-secondary">
+                                <i class="bi bi-upload"></i>
+                                Importieren
+                            </button>
+                            <button onclick="clearMappings()" class="btn-danger">
+                                <i class="bi bi-trash"></i>
+                                Alle löschen
+                            </button>
+                        </div>
+                        <div class="search-box">
+                            <input type="text" id="mappings-search" class="form-control" placeholder="🔍 Suchen...">
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table mappings-table">
+                            <thead>
+                                <tr>
+                                    <th>Typ</th>
+                                    <th>Placeholder</th>
+                                    <th>Original-Wert</th>
+                                    <th>Erstellt</th>
+                                    <th>Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mappings-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">Keine Zuordnungen vorhanden</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mappings-stats">
+                        <span class="badge bg-primary">Gesamt: <strong id="total-mappings">0</strong></span>
+                        <span class="badge bg-info">Personen: <strong id="persons-mappings">0</strong></span>
+                        <span class="badge bg-success">E-Mails: <strong id="emails-mappings">0</strong></span>
+                        <span class="badge bg-warning">Telefone: <strong id="phones-mappings">0</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BLACKLIST TAB -->
+            <div id="blacklist" class="tab-content">
+                <div class="content-header">
+                    <h2>🚫 Blacklist</h2>
+                    <p>Verwalten Sie Begriffe, die immer anonymisiert werden sollen</p>
+                </div>
+
+                <div class="blacklist-container">
+                    <div class="blacklist-form">
+                        <h3>➕ Begriff hinzufügen</h3>
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                id="blacklist-input" 
+                                class="form-control" 
+                                placeholder="Begriff eingeben (z.B. Firmenname, Projektname...)"
+                                onkeypress="if(event.key==='Enter') addToBlacklist()"
+                            >
+                            <button onclick="addToBlacklist()" class="btn-primary">
+                                <i class="bi bi-plus"></i>
+                                Hinzufügen
+                            </button>
+                        </div>
+                        <small class="form-text">Groß-/Kleinschreibung wird beachtet</small>
+                    </div>
+
+                    <div class="blacklist-list">
+                        <div class="list-header">
+                            <h3>📋 Blacklist-Einträge (<span id="blacklist-total">0</span>)</h3>
+                            <div class="button-group">
+                                <button onclick="exportBlacklist()" class="btn-icon" title="Exportieren">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button onclick="importBlacklist()" class="btn-icon" title="Importieren">
+                                    <i class="bi bi-upload"></i>
+                                </button>
+                                <button onclick="clearBlacklist()" class="btn-icon" title="Alle löschen">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="blacklist-items" class="blacklist-items">
+                            <p class="text-muted text-center">Keine Einträge vorhanden</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SETTINGS TAB -->
+            <div id="settings" class="tab-content">
+                <div class="content-header">
+                    <h2>⚙️ Einstellungen</h2>
+                    <p>Konfigurieren Sie die Anonymisierungs-Optionen</p>
+                </div>
+
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <h3>🔍 Erkennungs-Optionen</h3>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-persons" checked>
+                                <span class="setting-icon">👤</span>
+                                <span>Personen erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt Namen wie "Max Mustermann"</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-organizations" checked>
+                                <span class="setting-icon">🏢</span>
+                                <span>Organisationen erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt Firmen (GmbH, AG, etc.)</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-locations" checked>
+                                <span class="setting-icon">📍</span>
+                                <span>Orte erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt Städte und Adressen</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-emails" checked>
+                                <span class="setting-icon">📧</span>
+                                <span>E-Mail-Adressen erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt E-Mail-Adressen</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-phones" checked>
+                                <span class="setting-icon">📱</span>
+                                <span>Telefonnummern erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt Telefon- und Mobilnummern</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-iban" checked>
+                                <span class="setting-icon">🏦</span>
+                                <span>IBAN erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt Bankverbindungen</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-creditcards" checked>
+                                <span class="setting-icon">💳</span>
+                                <span>Kreditkarten erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt Kreditkartennummern</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-addresses" checked>
+                                <span class="setting-icon">🏠</span>
+                                <span>Adressen erkennen</span>
+                            </label>
+                            <p class="setting-description">Erkennt Straßen und Postleitzahlen</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>⚙️ Allgemeine Optionen</h3>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="preserve-formatting" checked>
+                                <span class="setting-icon">📝</span>
+                                <span>Formatierung beibehalten</span>
+                            </label>
+                            <p class="setting-description">Behält Zeilenumbrüche und Einrückungen bei</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="case-sensitive">
+                                <span class="setting-icon">🔤</span>
+                                <span>Groß-/Kleinschreibung beachten</span>
+                            </label>
+                            <p class="setting-description">Unterscheidet zwischen "Berlin" und "berlin"</p>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="debug-mode">
+                                <span class="setting-icon">🐛</span>
+                                <span>Debug-Modus</span>
+                            </label>
+                            <p class="setting-description">Zeigt detaillierte Logs in der Console</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>💾 Datenverwaltung</h3>
+                        
+                        <div class="button-group-vertical">
+                            <button onclick="exportAllData()" class="btn-secondary">
+                                <i class="bi bi-download"></i>
+                                Alle Daten exportieren
+                            </button>
+                            <button onclick="importAllData()" class="btn-secondary">
+                                <i class="bi bi-upload"></i>
+                                Alle Daten importieren
+                            </button>
+                            <button onclick="clearAllData()" class="btn-danger">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                Alle Daten löschen
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button onclick="saveSettings()" class="btn-primary">
+                            <i class="bi bi-check-circle"></i>
+                            Konfiguration speichern
+                        </button>
+                        <button onclick="resetSettings()" class="btn-secondary">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            Zurücksetzen
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-content">
+                <p>© 2026 Harald Weiss · Loganonymizer ·
+                    <a href="#" onclick="showAbout(); return false;">Über</a> ·
+                    <a href="#" onclick="showHelp(); return false;">Hilfe</a> ·
+                    <a href="#" onclick="showPrivacy(); return false;">Datenschutz</a>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Application Scripts (cache-bust on each release) -->
+    <script src="js/utils.js?v=106"></script>
+    <script src="js/config.js?v=106"></script>
+    <script src="js/anonymizer.js?v=106"></script>
+    <script src="js/ai.js?v=106"></script>
+    <script src="js/app.js?v=106"></script>
+
+    <!-- Initialization -->
+    <script>
+        console.log('🚀 Loganonymizer v103.0');
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
+        }
+    </script>
+</body>
+</html>

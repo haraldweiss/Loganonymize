@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Local development server (start.sh / stop.sh artefacts)
+.server.pid
+.server.log
+
+# Claude Code working directory — local-only
+.claude/
+
+# Editor scratch
+*.swp
+*~
+.idea/
+.vscode/
