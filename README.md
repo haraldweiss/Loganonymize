@@ -62,6 +62,68 @@ Hilfe-Karte mit Start-Befehl, Copy-Button, optional einem
 `ollama://`-App-Open-Versuch (macOS) und einem Auto-Retry-Loop, der
 sich bei Verbindungserfolg selbst zurückzieht.
 
+### Reboot-Persistenz für `OLLAMA_ORIGINS` (macOS)
+
+`launchctl setenv` lebt nur bis zum nächsten Reboot. Damit die Variable
+auch nach Neustart automatisch gesetzt wird, kann ein User-LaunchAgent
+beim Login einmal feuern.
+
+**1. Plist anlegen** unter
+`~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>de.<dein-handle>.ollama-origins</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/launchctl</string>
+        <string>setenv</string>
+        <string>OLLAMA_ORIGINS</string>
+        <string>http://localhost,http://localhost:8765,http://127.0.0.1,https://&lt;deine-pages-url&gt;</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
+```
+
+Den `<string>`-Wert in `ProgramArguments` mit deiner Origin-Liste
+ersetzen (comma-separated, kein Leerzeichen, `https://` wenn du eine
+gehostete Loganonymizer-Variante zur lokalen Ollama sprechen lässt).
+
+**2. Aktivieren**:
+```bash
+PLIST=~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
+plutil -lint "$PLIST"                           # Syntax-Check
+launchctl bootstrap gui/$(id -u) "$PLIST"       # registrieren + sofort feuern
+```
+
+**3. Verifizieren** (einmal jetzt, oder nach Reboot):
+```bash
+launchctl getenv OLLAMA_ORIGINS                 # sollte deine Liste zeigen
+curl -sI -H "Origin: https://<deine-pages-url>" http://localhost:11434/api/tags | grep access-control
+# erwartet: Access-Control-Allow-Origin: https://<deine-pages-url>
+```
+
+**4. Origins später ändern** — Plist editieren, dann:
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
+killall Ollama; open -a Ollama
+```
+
+**5. Entfernen**:
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
+rm ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
+```
+
 ## Datenschutz
 
 - Alle Mappings, Blacklist, Einstellungen, Provider-Konfigurationen und
