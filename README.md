@@ -90,6 +90,17 @@ sich bei Verbindungserfolg selbst zurückzieht.
 Cache-Buster (`?v=NNN`) hängen an allen Asset-Links für deterministische
 Browser-Reloads nach Releases.
 
+## Mitwirken
+
+Pull-Requests sind willkommen. Bitte einmal kurz [`CONTRIBUTING.md`](CONTRIBUTING.md)
+lesen — wir nutzen das Developer Certificate of Origin (DCO), Commits müssen
+also mit `git commit -s` signiert werden.
+
 ## Lizenz
 
-Veröffentlicht unter der [GNU GPL v3.0](LICENSE) — © 2026 Harald Weiss
+Veröffentlicht unter der [GNU AGPL v3.0](LICENSE) — © 2026 Harald Weiss.
+
+Die AGPL stellt sicher, dass auch netzbasierte Bereitstellungen (z. B. eine
+gehostete Loganonymizer-Variante als Web-Service) den Quellcode ihrer
+Modifikationen weitergeben müssen. Ideen und Konzepte sind durch keine
+Lizenz schützbar.

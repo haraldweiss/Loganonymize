@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# © 2026 Harald Weiss
 #
 # Loganonymizer — beendet den lokalen Webserver, der mit start.sh
 # gestartet wurde. Räumt auch ein veraltetes PID-File auf.

@@ -1,8 +1,9 @@
-/* =========================================================
-   Loganonymizer — design system
-   Inspired by the wolfinisoftware.de palette: dark canvas,
-   diagonal gradients, cyan/purple accents, Poppins.
-   ========================================================= */
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+ * © 2026 Harald Weiss
+ *
+ * Loganonymizer — design system
+ * Dark canvas, diagonal gradients, cyan/purple accents, Poppins.
+ */
 
 :root {
     /* canvas */

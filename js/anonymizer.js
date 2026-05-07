@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// © 2026 Harald Weiss
+
 /**
  * Loganonymizer — Anonymization Engine
  * Pattern-based detection of PII in logs and free text.

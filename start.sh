@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# © 2026 Harald Weiss
 #
 # Loganonymizer — startet einen lokalen Webserver via python3 -m http.server.
 # Nutzung:   ./start.sh                  # Standard-Port 8765
