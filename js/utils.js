@@ -93,9 +93,23 @@ function getDefaultSettings() {
         detectIBAN: true,
         detectCreditCards: true,
         detectAddresses: true,
+        detectIPs: false,           // off by default — IPs are usually
+                                    // valuable to *examine* (whois/VT) before
+                                    // anonymizing, so the panel handles them
+                                    // explicitly. Toggle on if you want them
+                                    // anonymized along with everything else.
+        detectFiles: false,         // off by default — same reasoning as IPs:
+                                    // file references are usually first
+                                    // *examined* (VT-Lookup), then optionally
+                                    // anonymized.
         preserveFormatting: true,
         caseSensitive: false,
         autoSave: true,
+        // Per-call hard cap on AI output length. Mostly a safety net against
+        // models that loop or refuse to stop. Same value is mapped to each
+        // provider's native field (OpenAI/Anthropic max_tokens, Ollama
+        // options.num_predict). Range 64–8192.
+        aiMaxTokens: 1500,
         lastUpdated: new Date().toISOString()
     };
 }
@@ -124,6 +138,8 @@ function applySettingsToForm(settings) {
         'detect-iban':          settings.detectIBAN,
         'detect-creditcards':   settings.detectCreditCards,
         'detect-addresses':     settings.detectAddresses,
+        'detect-ips':           settings.detectIPs,
+        'detect-files':         settings.detectFiles,
         'preserve-formatting':  settings.preserveFormatting,
         'case-sensitive':       settings.caseSensitive
     };
@@ -131,6 +147,9 @@ function applySettingsToForm(settings) {
         const node = document.getElementById(id);
         if (node && 'checked' in node) node.checked = !!val;
     }
+    // Non-checkbox fields
+    const maxTokens = document.getElementById('ai-max-tokens');
+    if (maxTokens) maxTokens.value = settings.aiMaxTokens ?? 1500;
 }
 
 // ============================================================

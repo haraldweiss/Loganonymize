@@ -160,6 +160,98 @@ function detectAddresses(text) {
 }
 
 /**
+ * Detect IPv4 addresses (with strict 0–255 octet validation) and the
+ * common IPv6 forms (full + a few compressed variants). Used both by
+ * the anonymization pipeline and by the IP-analysis panel.
+ *
+ * @param {string} text - Text to analyze
+ * @returns {Array} Array of detected IP-address strings (deduplicated)
+ */
+function detectIPs(text) {
+    const ipv4 = /\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b/g;
+    // IPv6: full form + the common compressed forms.
+    //   Order matters — JS regex picks the FIRST matching alternative,
+    //   so longer/more-specific patterns must come first, otherwise
+    //   "fe80::1234" would match as "fe80::" only.
+    //   1) full 8-group form        2) middle "::" with tail
+    //   3) leading "::"             4) trailing "::"
+    const ipv6 = /\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,6}(?::[0-9a-fA-F]{1,4}){1,6}\b|::[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,6}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:/g;
+
+    const found = new Set();
+    (text.match(ipv4) || []).forEach(ip => found.add(ip));
+    (text.match(ipv6) || []).forEach(ip => {
+        // Filter common false positives: timestamps like "12:34:56" are
+        // not IPv6; require at least one hex char that isn't a digit, OR
+        // the literal "::" sequence.
+        if (ip.includes('::') || /[a-fA-F]/.test(ip)) found.add(ip);
+    });
+    return [...found];
+}
+
+// File-extension whitelist, grouped by typical risk profile in a SOC
+// context. Bewusst KEINE TLDs (com, org, net, io, app, dev, info, …)
+// damit "example.com" und Co. nicht als Datei durchrutschen.
+const FILE_EXT_RISK = {
+    high: [   // Code-Execution-Vehikel
+        'exe','dll','bat','cmd','ps1','psm1','vbs','vbe','js','jse','wsf','wsh',
+        'msi','msp','scr','hta','jar','sh','bash','zsh','py','rb','pl','lua','ahk',
+        'apk','elf','o','so','dylib'
+    ],
+    medium: [ // Container / Office mit Macro-Risiko
+        'zip','7z','rar','tar','gz','tgz','bz2','xz','iso','img','dmg','vhd','vmdk',
+        'doc','docm','docx','dot','dotm','xls','xlsm','xlsx','xlt','xltm','xlsb',
+        'ppt','pptm','pptx','rtf','pdf','one','onetoc2',
+        'lnk','url','msg','eml','mbox','pst','ost'
+    ],
+    low: [    // Daten / Text / Medien — meist harmlos
+        'txt','log','csv','tsv','json','jsonl','ndjson','xml','yaml','yml','toml',
+        'html','htm','md','markdown',
+        'png','jpg','jpeg','gif','svg','webp','bmp','ico','tiff',
+        'mp3','mp4','wav','m4a','mov','avi','mkv','webm','ogg','flac',
+        'pcap','pcapng','tmp','bak','old','sqlite','db'
+    ]
+};
+
+const ALL_FILE_EXTS = [
+    ...FILE_EXT_RISK.high,
+    ...FILE_EXT_RISK.medium,
+    ...FILE_EXT_RISK.low
+];
+
+const FILE_EXT_PATTERN = new RegExp(
+    // word boundary, name body (allows dots so we capture "archive.tar.gz"),
+    // dot, one of our whitelisted extensions, word boundary.
+    `\\b[\\w][\\w.\\-]*\\.(?:${ALL_FILE_EXTS.join('|')})\\b`,
+    'gi'
+);
+
+/**
+ * Look up the risk classification ("high"/"medium"/"low") for a file
+ * by its trailing extension. Returns 'low' if nothing matches.
+ */
+function classifyFile(filename) {
+    const m = filename.toLowerCase().match(/\.([a-z0-9]+)$/);
+    if (!m) return 'low';
+    const ext = m[1];
+    if (FILE_EXT_RISK.high.includes(ext))   return 'high';
+    if (FILE_EXT_RISK.medium.includes(ext)) return 'medium';
+    return 'low';
+}
+
+/**
+ * Detect file references (name + whitelisted extension). Returns
+ * deduplicated, original-case strings — only the matching part of the
+ * input, so paths like "/var/log/syslog.log" come back as "syslog.log".
+ *
+ * @param {string} text
+ * @returns {Array<string>}
+ */
+function detectFiles(text) {
+    const matches = text.match(FILE_EXT_PATTERN) || [];
+    return [...new Set(matches)];
+}
+
+/**
  * Detect organizations
  * @param {string} text - Text to analyze
  * @returns {Array} Array of detected organizations
@@ -202,7 +294,7 @@ function runAnonymization(text) {
 
         // Use highest existing counter per type so we never collide with
         // a placeholder that was created earlier (and possibly deleted again).
-        const types = ['person', 'organization', 'location', 'email', 'phone', 'account', 'creditcard', 'custom'];
+        const types = ['person', 'organization', 'location', 'email', 'phone', 'account', 'creditcard', 'ip', 'file', 'custom'];
         const counters = {};
         for (const t of types) {
             const prefix = t.toUpperCase() + '_';
@@ -261,9 +353,21 @@ function runAnonymization(text) {
         // STEP 2: Pattern-based detection
         // ========================================
         
-        // Order matters: structured/validated patterns (IBAN, CC, email) run
-        // first so they claim long digit sequences before the broader phone
-        // heuristic gets a chance to misread them.
+        // Order matters: structured/validated patterns (IBAN, CC, email, IP)
+        // run first so they claim long digit sequences before the broader
+        // phone heuristic gets a chance to misread them.
+        if (settings.detectIPs) {
+            logMessage('DEBUG', 'Detecting IPs...');
+            const ips = detectIPs(result);
+            ips.forEach(ip => replaceValue(ip, 'ip'));
+        }
+
+        if (settings.detectFiles) {
+            logMessage('DEBUG', 'Detecting files...');
+            const files = detectFiles(result);
+            files.forEach(f => replaceValue(f, 'file'));
+        }
+
         if (settings.detectIBAN) {
             logMessage('DEBUG', 'Detecting IBANs...');
             const ibans = detectIBANs(result);

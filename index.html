@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=106">
+    <link rel="stylesheet" href="css/styles.css?v=111">
 </head>
 <body>
     <div class="app-shell">
@@ -169,6 +169,28 @@
                         <span class="detection-badge">📍 Adressen: <strong id="addresses-count">0</strong></span>
                         <span class="detection-badge">🔒 Blacklist: <strong id="blacklist-count">0</strong></span>
                     </div>
+                </div>
+
+                <!-- Datei-Erkennung (Name + Endung, Risiko-Klassifikation) -->
+                <div id="file-panel" class="info-panel file-panel" style="display:none">
+                    <div class="suggestions-header">
+                        <h4>📄 Erkannte Dateien</h4>
+                        <span class="text-muted" style="font-size:.78rem">
+                            Whitelist-basiert, ohne Domains. Hohe Risikoklasse = Code-Execution-fähig.
+                        </span>
+                    </div>
+                    <div id="file-list" class="file-list"></div>
+                </div>
+
+                <!-- IP-Analyse (whois / VirusTotal / AbuseIPDB) -->
+                <div id="ip-panel" class="info-panel ip-panel" style="display:none">
+                    <div class="suggestions-header">
+                        <h4>🌐 Erkannte IP-Adressen</h4>
+                        <span class="text-muted" style="font-size:.78rem">
+                            Per Klick prüfen — Web öffnet einen neuen Tab, bei gesetztem API-Key (Einstellungen) läuft die Abfrage direkt in der App.
+                        </span>
+                    </div>
+                    <div id="ip-list" class="ip-list"></div>
                 </div>
 
                 <!-- Blacklist suggestions -->
@@ -623,6 +645,69 @@
                             </label>
                             <p class="setting-description">Erkennt Straßen und Postleitzahlen</p>
                         </div>
+
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-ips">
+                                <span class="setting-icon">🌐</span>
+                                <span>IP-Adressen anonymisieren</span>
+                            </label>
+                            <p class="setting-description">
+                                Standardmäßig <strong>aus</strong>: erkannte IPs sind im Analyse-Panel
+                                sichtbar (Whois/VirusTotal/AbuseIPDB). Aktivieren, wenn IPs zusätzlich
+                                durch Platzhalter ersetzt werden sollen.
+                            </p>
+                        </div>
+
+                        <div class="setting-item">
+                            <label>
+                                <input type="checkbox" id="detect-files">
+                                <span class="setting-icon">📄</span>
+                                <span>Dateinamen anonymisieren</span>
+                            </label>
+                            <p class="setting-description">
+                                Standardmäßig <strong>aus</strong>: erkannte Dateien (Name + Endung)
+                                sind im Analyse-Panel mit Risikoklasse + VirusTotal-Lookup verfügbar.
+                                Aktivieren, wenn Dateinamen zusätzlich durch Platzhalter ersetzt werden sollen.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>🤖 KI-Aufruf-Limits</h3>
+
+                        <div class="form-group">
+                            <label for="ai-max-tokens">Maximale Output-Tokens pro Aufruf</label>
+                            <input type="number" id="ai-max-tokens" class="form-control" min="64" max="8192" step="1" value="1500">
+                            <small class="form-text">
+                                Hartes Limit pro Anfrage — Schutz gegen Modelle, die im Loop hängen.
+                                Wird automatisch auf den nativen Parameter des Providers gemappt
+                                (<code>max_tokens</code> bei OpenAI/Anthropic, <code>num_predict</code> bei Ollama).
+                                Bereich: 64–8192. Standard: 1500.
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>🔌 Externe IP-Reputation (optional)</h3>
+
+                        <div class="form-group">
+                            <label for="vt-api-key">VirusTotal API-Key</label>
+                            <input type="password" id="vt-api-key" class="form-control" placeholder="leer = Web-Lookup im neuen Tab" autocomplete="off">
+                            <small class="form-text">
+                                Wenn gesetzt, läuft die Abfrage direkt in der App via API.
+                                <a href="https://www.virustotal.com/gui/user/me/apikey" target="_blank" rel="noopener">Key holen ↗</a>
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="abuseipdb-api-key">AbuseIPDB API-Key</label>
+                            <input type="password" id="abuseipdb-api-key" class="form-control" placeholder="leer = Web-Lookup im neuen Tab" autocomplete="off">
+                            <small class="form-text">
+                                Wenn gesetzt, läuft die Abfrage direkt in der App via API.
+                                <a href="https://www.abuseipdb.com/account/api" target="_blank" rel="noopener">Key holen ↗</a>
+                            </small>
+                        </div>
                     </div>
 
                     <div class="settings-section">
@@ -706,11 +791,11 @@
     <div id="notification-container" class="notification-container"></div>
 
     <!-- Application Scripts (cache-bust on each release) -->
-    <script src="js/utils.js?v=106"></script>
-    <script src="js/config.js?v=106"></script>
-    <script src="js/anonymizer.js?v=106"></script>
-    <script src="js/ai.js?v=106"></script>
-    <script src="js/app.js?v=106"></script>
+    <script src="js/utils.js?v=111"></script>
+    <script src="js/config.js?v=111"></script>
+    <script src="js/anonymizer.js?v=111"></script>
+    <script src="js/ai.js?v=111"></script>
+    <script src="js/app.js?v=111"></script>
 
     <!-- Initialization -->
     <script>

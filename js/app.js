@@ -19,6 +19,11 @@ const AI_PROVIDER_STORAGE_KEY = STORAGE_PREFIX + 'ai_providers';
 const AI_HISTORY_STORAGE_KEY  = STORAGE_PREFIX + 'ai_history';
 const AI_HISTORY_MAX_ENTRIES  = 50;
 
+// Optional API keys for IP-reputation lookups. Stored as plain strings
+// so the user can paste/clear without going through the settings JSON.
+const VT_KEY_STORAGE_KEY        = STORAGE_PREFIX + 'vt_api_key';
+const ABUSEIPDB_KEY_STORAGE_KEY = STORAGE_PREFIX + 'abuseipdb_api_key';
+
 // One-shot migration from the previous "cosanta_*" namespace.
 // Runs at module load (before initializeApp), so storage reads inside
 // initializeApp see the new keys. Safe to leave in place — once the
@@ -80,8 +85,13 @@ function initializeApp() {
         wireProviderSelectChange();
         wireMappingsSearch();
         wireSuggestionsAutoTrigger();
+        wireIpPanelAutoTrigger();
+        wireFilePanelAutoTrigger();
+        loadIpReputationKeys();
 
         renderAll();
+        refreshIpPanel();
+        refreshFilePanel();
         logMessage('INFO', 'Loganonymizer initialized');
     } catch (error) {
         logMessage('ERROR', 'Init failed: ' + error.message);
@@ -775,7 +785,18 @@ async function refreshOllamaModels(id) {
 // AI CALL
 // ============================================================
 
+// AbortController for the currently in-flight AI call. Shared with the
+// "Abbrechen" button so the user can kill stuck/loop requests without
+// having to reload the page.
+let currentAIAbort = null;
+
 async function sendToAI() {
+    // If a request is already running, treat the click as an abort.
+    if (currentAIAbort) {
+        currentAIAbort.abort();
+        return;
+    }
+
     const providerId = document.getElementById('ai-provider').value;
     const model = document.getElementById('ai-model').value;
     const promptText = document.getElementById('ai-prompt').value.trim();
@@ -801,10 +822,23 @@ async function sendToAI() {
         : textToSend;
 
     clearChildren(responseBox);
-    responseBox.appendChild(el('p', { class: 'text-muted' }, '⏳ Anfrage läuft...'));
+    responseBox.appendChild(el('p', { class: 'text-muted' }, '⏳ Anfrage läuft… (Klick auf „Abbrechen" stoppt sie)'));
+
+    setSendButtonAborting(true);
+    currentAIAbort = new AbortController();
+    const t0 = performance.now();
 
     try {
-        const legacyShape = { providerId: provider.type, model, apiKey: provider.apiKey, endpoint: provider.endpoint };
+        const maxTokens = Number(getSettings().aiMaxTokens) || 1500;
+        const legacyShape = {
+            providerId: provider.type,
+            model,
+            apiKey:   provider.apiKey,
+            endpoint: provider.endpoint,
+            maxTokens,
+            signal:   currentAIAbort.signal
+        };
+
         let response;
         switch (provider.type) {
             case 'openai':    response = await callOpenAI(fullPrompt, legacyShape); break;
@@ -820,11 +854,22 @@ async function sendToAI() {
             response = runDeanonymization(response).deanonymized;
         }
 
-        clearChildren(responseBox);
-        responseBox.textContent = response;
-        showNotification('Antwort erhalten', 'success');
+        const durationMs = Math.round(performance.now() - t0);
+        const repetition = detectRepetitionScore(response);
 
-        // Persist this successful interaction in the local history.
+        clearChildren(responseBox);
+        if (repetition.score > 0.4) {
+            responseBox.appendChild(renderRepetitionWarning(repetition, durationMs));
+        }
+        responseBox.appendChild(document.createTextNode(response));
+
+        showNotification(
+            repetition.score > 0.4
+                ? `Antwort erhalten (⚠️ ${Math.round(repetition.score * 100)}% Wiederholungen — Modell könnte geloopt haben)`
+                : 'Antwort erhalten',
+            repetition.score > 0.4 ? 'warning' : 'success'
+        );
+
         saveAIHistoryEntry({
             timestamp:    Date.now(),
             providerId:   provider.id,
@@ -838,12 +883,90 @@ async function sendToAI() {
             responseDeanonymized:   autoDeanon
         });
         renderAIHistory();
+
     } catch (error) {
-        logMessage('ERROR', 'AI call failed: ' + error.message);
         clearChildren(responseBox);
-        responseBox.appendChild(el('p', { class: 'text-danger' }, '❌ Fehler: ' + error.message));
-        showNotification('Fehler: ' + error.message, 'error');
+        if (error.name === 'AbortError') {
+            logMessage('INFO', 'AI call aborted by user');
+            responseBox.appendChild(el('p', { class: 'text-muted' }, '⏹ Abgebrochen.'));
+            showNotification('Anfrage abgebrochen', 'info');
+        } else {
+            logMessage('ERROR', 'AI call failed: ' + error.message);
+            responseBox.appendChild(el('p', { class: 'text-danger' }, '❌ Fehler: ' + error.message));
+            showNotification('Fehler: ' + error.message, 'error');
+        }
+    } finally {
+        currentAIAbort = null;
+        setSendButtonAborting(false);
     }
+}
+
+/**
+ * Swap the "An KI senden" button between its two states. Finds the
+ * button by its onclick attribute so we don't depend on a fragile id.
+ */
+function setSendButtonAborting(aborting) {
+    const btn = Array.from(document.querySelectorAll('#ai-analysis button'))
+        .find(b => /sendToAI/.test(b.getAttribute('onclick') || ''));
+    if (!btn) return;
+    if (aborting) {
+        btn.dataset.original = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-stop-circle"></i> Abbrechen';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-danger', 'btn-aborting');
+    } else if (btn.dataset.original) {
+        btn.innerHTML = btn.dataset.original;
+        btn.classList.remove('btn-danger', 'btn-aborting');
+        btn.classList.add('btn-primary');
+    }
+}
+
+/**
+ * Cheap heuristic for "did the model loop?". Splits the response into
+ * word-tokens, builds 3-grams, and reports the share of n-grams that
+ * appear more than once. Above ~40% the output is almost certainly
+ * degenerate. Returns null-ish for very short responses.
+ */
+function detectRepetitionScore(text) {
+    const words = (text || '').match(/\b[\wäöüÄÖÜß]+\b/g) || [];
+    if (words.length < 30) return { score: 0, top: null };
+
+    const trigrams = new Map();
+    for (let i = 0; i <= words.length - 3; i++) {
+        const tri = (words[i] + ' ' + words[i + 1] + ' ' + words[i + 2]).toLowerCase();
+        trigrams.set(tri, (trigrams.get(tri) || 0) + 1);
+    }
+
+    const total = words.length - 2;
+    let repeatedCount = 0;
+    let topTri = null;
+    let topCount = 0;
+    for (const [tri, c] of trigrams) {
+        if (c > 1) repeatedCount += c;
+        if (c > topCount) { topCount = c; topTri = tri; }
+    }
+
+    return {
+        score: repeatedCount / total,
+        top:   topCount > 1 ? { phrase: topTri, count: topCount } : null,
+        words: words.length
+    };
+}
+
+function renderRepetitionWarning(rep, durationMs) {
+    const pct = Math.round(rep.score * 100);
+    const seconds = (durationMs / 1000).toFixed(1);
+    const lines = [
+        `⚠️ Wiederholungs-Anteil: ${pct}% (${rep.words} Tokens, ${seconds}s).`
+    ];
+    if (rep.top) {
+        lines.push(`Häufigste Phrase ${rep.top.count}×: "${rep.top.phrase}".`);
+    }
+    lines.push('Das Modell könnte geloopt haben — eventuell num_predict reduzieren oder anderes Modell probieren.');
+
+    return el('div', { class: 'ai-repetition-warning' },
+        ...lines.map(l => el('p', {}, l))
+    );
 }
 
 // ============================================================
@@ -1039,11 +1162,15 @@ function saveSettings() {
         detectIBAN:          checkbox('detect-iban', true),
         detectCreditCards:   checkbox('detect-creditcards', true),
         detectAddresses:     checkbox('detect-addresses', true),
+        detectIPs:           checkbox('detect-ips', false),
+        detectFiles:         checkbox('detect-files', false),
         preserveFormatting:  checkbox('preserve-formatting', true),
         caseSensitive:       checkbox('case-sensitive', false),
+        aiMaxTokens:         clampNumber('ai-max-tokens', 1500, 64, 8192),
         lastUpdated:         new Date().toISOString()
     };
     localStorage.setItem(STORAGE_PREFIX + 'settings', JSON.stringify(settings));
+    saveIpReputationKeys();
     window.DEBUG_MODE = !!settings.debugMode;
     showNotification('Einstellungen gespeichert', 'success');
 }
@@ -1060,6 +1187,14 @@ function resetSettings() {
 function checkbox(id, fallback) {
     const node = document.getElementById(id);
     return node ? !!node.checked : fallback;
+}
+
+function clampNumber(id, fallback, min, max) {
+    const node = document.getElementById(id);
+    if (!node) return fallback;
+    const n = Number(node.value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, Math.round(n)));
 }
 
 // ============================================================
@@ -1630,6 +1765,340 @@ function dismissSuggestion(term) {
     if (input?.value.trim()) {
         renderSuggestions(suggestBlacklistCandidates(input.value));
     }
+}
+
+// ============================================================
+// IP ANALYSIS — whois (web), VirusTotal (API/web), AbuseIPDB (API/web)
+//
+// We work on the *original* input so the user can examine IPs before
+// (or independently of) any anonymization run. Web lookups always work,
+// API lookups kick in automatically when an API key is configured in
+// Einstellungen.
+// ============================================================
+
+let ipPanelTimer = null;
+const ipResultCache = new Map();   // ip → { vt: …, abuse: … } (in-memory, per session)
+
+function wireIpPanelAutoTrigger() {
+    const input = document.getElementById('input-text');
+    if (!input) return;
+    input.addEventListener('input', () => {
+        if (ipPanelTimer) clearTimeout(ipPanelTimer);
+        ipPanelTimer = setTimeout(refreshIpPanel, 500);
+    });
+}
+
+function refreshIpPanel() {
+    const panel = document.getElementById('ip-panel');
+    const list  = document.getElementById('ip-list');
+    if (!panel || !list) return;
+
+    const text = document.getElementById('input-text')?.value || '';
+    const ips = text.trim() ? detectIPs(text) : [];
+
+    if (ips.length === 0) {
+        panel.style.display = 'none';
+        clearChildren(list);
+        return;
+    }
+
+    panel.style.display = '';
+    clearChildren(list);
+
+    ips.forEach(ip => {
+        const card = el('div', { class: 'ip-card', dataset: { ip } });
+
+        const head = el('div', { class: 'ip-head' },
+            el('span', { class: 'ip-addr' }, ip),
+            el('span', { class: 'ip-type' }, ip.includes(':') ? 'IPv6' : 'IPv4')
+        );
+
+        const actions = el('div', { class: 'ip-actions' },
+            el('button', {
+                class: 'btn-secondary btn-sm',
+                onclick: () => openWhois(ip),
+                title: 'Whois.com im neuen Tab öffnen'
+            }, '🌐 Whois'),
+            el('button', {
+                class: 'btn-secondary btn-sm',
+                onclick: () => lookupVirusTotal(ip, card),
+                title: 'VirusTotal — API wenn Key gesetzt, sonst Web'
+            }, '🛡️ VirusTotal'),
+            el('button', {
+                class: 'btn-secondary btn-sm',
+                onclick: () => lookupAbuseIPDB(ip, card),
+                title: 'AbuseIPDB — API wenn Key gesetzt, sonst Web'
+            }, '🚨 AbuseIPDB')
+        );
+
+        const result = el('div', { class: 'ip-result', dataset: { role: 'ip-result' } });
+
+        // If we already have cached results from this session, restore them.
+        const cached = ipResultCache.get(ip);
+        if (cached) {
+            if (cached.vt)    result.appendChild(renderVtResult(cached.vt));
+            if (cached.abuse) result.appendChild(renderAbuseResult(cached.abuse));
+        }
+
+        card.append(head, actions, result);
+        list.appendChild(card);
+    });
+}
+
+function openWhois(ip) {
+    window.open(`https://www.whois.com/whois/${encodeURIComponent(ip)}`, '_blank', 'noopener');
+}
+
+// ---------------- VirusTotal ----------------
+
+async function lookupVirusTotal(ip, card) {
+    const key = (localStorage.getItem(VT_KEY_STORAGE_KEY) || '').trim();
+    if (!key) {
+        window.open(`https://www.virustotal.com/gui/ip-address/${encodeURIComponent(ip)}`, '_blank', 'noopener');
+        return;
+    }
+
+    const result = card.querySelector('[data-role="ip-result"]');
+    appendOrReplace(result, 'vt', el('div', { class: 'ip-loading' }, '⏳ VirusTotal-Abfrage läuft …'));
+
+    try {
+        const res = await fetch(`https://www.virustotal.com/api/v3/ip_addresses/${encodeURIComponent(ip)}`, {
+            headers: { 'x-apikey': key }
+        });
+        if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            throw new Error(`HTTP ${res.status} ${txt.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        const summary = summarizeVtResponse(ip, data);
+        cacheResult(ip, 'vt', summary);
+        appendOrReplace(result, 'vt', renderVtResult(summary));
+    } catch (err) {
+        logMessage('WARN', `VT lookup failed for ${ip}: ${err.message}`);
+        appendOrReplace(result, 'vt', el('div', { class: 'ip-error' },
+            '❌ VirusTotal: ' + err.message + ' ',
+            el('a', { href: `https://www.virustotal.com/gui/ip-address/${encodeURIComponent(ip)}`, target: '_blank', rel: 'noopener' }, '→ Web öffnen')));
+    }
+}
+
+function summarizeVtResponse(ip, data) {
+    const stats = data?.data?.attributes?.last_analysis_stats || {};
+    const owner = data?.data?.attributes?.as_owner || '—';
+    const country = data?.data?.attributes?.country || '—';
+    const reputation = data?.data?.attributes?.reputation;
+    return {
+        ip,
+        malicious:  stats.malicious  ?? 0,
+        suspicious: stats.suspicious ?? 0,
+        harmless:   stats.harmless   ?? 0,
+        undetected: stats.undetected ?? 0,
+        owner, country, reputation
+    };
+}
+
+function renderVtResult(s) {
+    const verdict = s.malicious > 0 ? 'malicious'
+                  : s.suspicious > 0 ? 'suspicious'
+                  : 'clean';
+    return el('div', { class: `ip-report ip-report-${verdict}`, dataset: { source: 'vt' } },
+        el('strong', {}, '🛡️ VirusTotal '),
+        el('span', { class: 'ip-stat malicious' },  `mal: ${s.malicious}`), ' · ',
+        el('span', { class: 'ip-stat suspicious' }, `susp: ${s.suspicious}`), ' · ',
+        el('span', { class: 'ip-stat clean' },      `clean: ${s.harmless}`), ' · ',
+        el('span', {}, `${s.country} · ${s.owner}`),
+        ' ',
+        el('a', { href: `https://www.virustotal.com/gui/ip-address/${encodeURIComponent(s.ip)}`, target: '_blank', rel: 'noopener', class: 'ip-link' }, '↗')
+    );
+}
+
+// ---------------- AbuseIPDB ----------------
+
+async function lookupAbuseIPDB(ip, card) {
+    const key = (localStorage.getItem(ABUSEIPDB_KEY_STORAGE_KEY) || '').trim();
+    if (!key) {
+        window.open(`https://www.abuseipdb.com/check/${encodeURIComponent(ip)}`, '_blank', 'noopener');
+        return;
+    }
+
+    const result = card.querySelector('[data-role="ip-result"]');
+    appendOrReplace(result, 'abuse', el('div', { class: 'ip-loading' }, '⏳ AbuseIPDB-Abfrage läuft …'));
+
+    try {
+        const url = `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90`;
+        const res = await fetch(url, { headers: { 'Key': key, 'Accept': 'application/json' } });
+        if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            throw new Error(`HTTP ${res.status} ${txt.slice(0, 120)}`);
+        }
+        const data = await res.json();
+        const summary = summarizeAbuseResponse(ip, data);
+        cacheResult(ip, 'abuse', summary);
+        appendOrReplace(result, 'abuse', renderAbuseResult(summary));
+    } catch (err) {
+        logMessage('WARN', `AbuseIPDB lookup failed for ${ip}: ${err.message}`);
+        appendOrReplace(result, 'abuse', el('div', { class: 'ip-error' },
+            '❌ AbuseIPDB: ' + err.message + ' ',
+            el('a', { href: `https://www.abuseipdb.com/check/${encodeURIComponent(ip)}`, target: '_blank', rel: 'noopener' }, '→ Web öffnen')));
+    }
+}
+
+function summarizeAbuseResponse(ip, data) {
+    const d = data?.data || {};
+    return {
+        ip,
+        score:        d.abuseConfidenceScore ?? 0,
+        country:      d.countryCode || '—',
+        usageType:    d.usageType  || '—',
+        totalReports: d.totalReports ?? 0,
+        lastReported: d.lastReportedAt || null,
+        domain:       d.domain || ''
+    };
+}
+
+function renderAbuseResult(s) {
+    const verdict = s.score >= 75 ? 'malicious'
+                  : s.score >= 25 ? 'suspicious'
+                  : 'clean';
+    const last = s.lastReported ? new Date(s.lastReported).toLocaleDateString('de-DE') : '—';
+    return el('div', { class: `ip-report ip-report-${verdict}`, dataset: { source: 'abuse' } },
+        el('strong', {}, '🚨 AbuseIPDB '),
+        el('span', { class: 'ip-stat ' + verdict }, `Score ${s.score}/100`), ' · ',
+        el('span', {}, `${s.totalReports} Reports`), ' · ',
+        el('span', {}, `letzter: ${last}`), ' · ',
+        el('span', {}, `${s.country} · ${s.usageType}`),
+        ' ',
+        el('a', { href: `https://www.abuseipdb.com/check/${encodeURIComponent(s.ip)}`, target: '_blank', rel: 'noopener', class: 'ip-link' }, '↗')
+    );
+}
+
+// ---------------- helpers ----------------
+
+function cacheResult(ip, source, value) {
+    const entry = ipResultCache.get(ip) || {};
+    entry[source] = value;
+    ipResultCache.set(ip, entry);
+}
+
+function appendOrReplace(container, source, node) {
+    const existing = container.querySelector(`[data-source="${source}"], .ip-loading`);
+    if (existing && existing.dataset && existing.dataset.source === source) {
+        container.replaceChild(node, existing);
+    } else {
+        // Loading-spinner muss raus, wenn das Ergebnis da ist.
+        const loaders = container.querySelectorAll('.ip-loading');
+        loaders.forEach(l => l.remove());
+        container.appendChild(node);
+    }
+}
+
+// ============================================================
+// FILE ANALYSIS — Erkennung + VirusTotal-Web-Lookup
+//
+// Same UX-Idee wie das IP-Panel: erkannte Dateien werden gelistet,
+// per Klick lässt sich der Name auf virustotal.com nachschlagen
+// (Web-Suche). Ein API-Schlüssel ist nicht nötig — VT-Filename-Lookups
+// gibt's auf der freien API ohnehin nicht (nur über Hash). Wenn du
+// einen Hash mitgepastet hast, kannst du den unten manuell prüfen.
+// ============================================================
+
+let filePanelTimer = null;
+
+function wireFilePanelAutoTrigger() {
+    const input = document.getElementById('input-text');
+    if (!input) return;
+    input.addEventListener('input', () => {
+        if (filePanelTimer) clearTimeout(filePanelTimer);
+        filePanelTimer = setTimeout(refreshFilePanel, 500);
+    });
+}
+
+function refreshFilePanel() {
+    const panel = document.getElementById('file-panel');
+    const list  = document.getElementById('file-list');
+    if (!panel || !list) return;
+
+    const text = document.getElementById('input-text')?.value || '';
+    const files = text.trim() ? detectFiles(text) : [];
+
+    if (files.length === 0) {
+        panel.style.display = 'none';
+        clearChildren(list);
+        return;
+    }
+
+    panel.style.display = '';
+    clearChildren(list);
+
+    // Sort by risk (high → low) so the dangerous ones jump out first.
+    const RISK_ORDER = { high: 0, medium: 1, low: 2 };
+    const enriched = files.map(name => ({ name, risk: classifyFile(name) }));
+    enriched.sort((a, b) => RISK_ORDER[a.risk] - RISK_ORDER[b.risk] || a.name.localeCompare(b.name));
+
+    enriched.forEach(({ name, risk }) => {
+        const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+        const label = riskLabel(risk);
+
+        const card = el('div', { class: `file-card file-risk-${risk}` });
+        const head = el('div', { class: 'file-head' },
+            el('span', { class: 'file-name' }, name),
+            el('span', { class: `file-ext file-ext-${risk}` }, ext || '?'),
+            el('span', { class: `file-risk file-risk-badge-${risk}` }, label)
+        );
+
+        const actions = el('div', { class: 'file-actions' },
+            el('button', {
+                class: 'btn-secondary btn-sm',
+                onclick: () => openFileVtSearch(name),
+                title: 'VirusTotal-Suche im neuen Tab — sucht nach dem Dateinamen'
+            }, '🛡️ VirusTotal'),
+            el('button', {
+                class: 'btn-icon',
+                title: 'Dateinamen kopieren',
+                onclick: async () => {
+                    try {
+                        await navigator.clipboard.writeText(name);
+                        showNotification('Kopiert', 'success');
+                    } catch {
+                        showNotification('Kopieren fehlgeschlagen', 'error');
+                    }
+                }
+            }, '📋')
+        );
+
+        card.append(head, actions);
+        list.appendChild(card);
+    });
+}
+
+function riskLabel(risk) {
+    return risk === 'high'   ? 'hohes Risiko (Code-Execution)'
+         : risk === 'medium' ? 'mittleres Risiko (Container/Doc)'
+         :                     'geringes Risiko (Daten/Text)';
+}
+
+function openFileVtSearch(filename) {
+    const url = 'https://www.virustotal.com/gui/search/' + encodeURIComponent(filename);
+    window.open(url, '_blank', 'noopener');
+}
+
+// ---------------- API-Key persistence ----------------
+
+function loadIpReputationKeys() {
+    const vt    = localStorage.getItem(VT_KEY_STORAGE_KEY) || '';
+    const abuse = localStorage.getItem(ABUSEIPDB_KEY_STORAGE_KEY) || '';
+    const vtField    = document.getElementById('vt-api-key');
+    const abuseField = document.getElementById('abuseipdb-api-key');
+    if (vtField)    vtField.value    = vt;
+    if (abuseField) abuseField.value = abuse;
+}
+
+function saveIpReputationKeys() {
+    const vt    = (document.getElementById('vt-api-key')?.value    || '').trim();
+    const abuse = (document.getElementById('abuseipdb-api-key')?.value || '').trim();
+    if (vt)    localStorage.setItem(VT_KEY_STORAGE_KEY, vt);
+    else       localStorage.removeItem(VT_KEY_STORAGE_KEY);
+    if (abuse) localStorage.setItem(ABUSEIPDB_KEY_STORAGE_KEY, abuse);
+    else       localStorage.removeItem(ABUSEIPDB_KEY_STORAGE_KEY);
 }
 
 console.log('✅ app.js loaded (clean wiring layer)');

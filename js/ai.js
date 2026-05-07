@@ -225,6 +225,7 @@ async function callOpenAI(prompt, provider) {
     const endpoint = provider.endpoint || 'https://api.openai.com/v1/chat/completions';
     const response = await fetch(endpoint, {
         method: 'POST',
+        signal: provider.signal,
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${provider.apiKey}`
@@ -242,7 +243,7 @@ async function callOpenAI(prompt, provider) {
                 }
             ],
             temperature: 0.7,
-            max_tokens: 2000
+            max_tokens: provider.maxTokens || 2000
         })
     });
     
@@ -250,9 +251,14 @@ async function callOpenAI(prompt, provider) {
         const error = await response.json();
         throw new Error(error.error?.message || 'API request failed');
     }
-    
+
     const data = await response.json();
-    return data.choices[0].message.content;
+    const choice = data.choices?.[0];
+    let content = choice?.message?.content || '';
+    if (choice?.finish_reason === 'length') {
+        content += truncationWarning(provider.maxTokens || 2000, data.usage?.completion_tokens);
+    }
+    return content;
 }
 
 /**
@@ -261,6 +267,7 @@ async function callOpenAI(prompt, provider) {
 async function callAnthropic(prompt, provider) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
+        signal: provider.signal,
         headers: {
             'Content-Type': 'application/json',
             'x-api-key': provider.apiKey,
@@ -268,7 +275,7 @@ async function callAnthropic(prompt, provider) {
         },
         body: JSON.stringify({
             model: provider.model,
-            max_tokens: 2000,
+            max_tokens: provider.maxTokens || 2000,
             messages: [
                 {
                     role: 'user',
@@ -282,9 +289,13 @@ async function callAnthropic(prompt, provider) {
         const error = await response.json();
         throw new Error(error.error?.message || 'API request failed');
     }
-    
+
     const data = await response.json();
-    return data.content[0].text;
+    let content = data.content?.[0]?.text || '';
+    if (data.stop_reason === 'max_tokens') {
+        content += truncationWarning(provider.maxTokens || 2000, data.usage?.output_tokens);
+    }
+    return content;
 }
 
 /**
@@ -294,11 +305,13 @@ async function callGoogle(prompt, provider) {
     const url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(provider.model)}:generateContent`;
     const response = await fetch(url, {
         method: 'POST',
+        signal: provider.signal,
         headers: {
             'Content-Type': 'application/json',
             'x-goog-api-key': provider.apiKey
         },
         body: JSON.stringify({
+            generationConfig: { maxOutputTokens: provider.maxTokens || 2000 },
             contents: [
                 {
                     parts: [
@@ -315,9 +328,14 @@ async function callGoogle(prompt, provider) {
         const error = await response.json();
         throw new Error(error.error?.message || 'API request failed');
     }
-    
+
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    const cand = data.candidates?.[0];
+    let content = cand?.content?.parts?.[0]?.text || '';
+    if (cand?.finishReason === 'MAX_TOKENS') {
+        content += truncationWarning(provider.maxTokens || 2000);
+    }
+    return content;
 }
 
 /**
@@ -332,10 +350,18 @@ async function callOllama(prompt, provider) {
     const endpoint = provider.endpoint || 'http://localhost:11434/api/chat';
     const response = await fetch(endpoint, {
         method: 'POST',
+        signal: provider.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: provider.model,
             stream: false,
+            // num_predict caps token generation; repeat_penalty + repeat_last_n
+            // are the standard knobs against degenerate / looping output.
+            options: {
+                num_predict:    provider.maxTokens || 1500,
+                repeat_penalty: 1.15,
+                repeat_last_n:  64
+            },
             messages: [
                 { role: 'user', content: prompt }
             ]
@@ -348,11 +374,82 @@ async function callOllama(prompt, provider) {
     }
 
     const data = await response.json();
-    // Ollama /api/chat returns { message: { content }, ... }
-    if (data.message?.content) return data.message.content;
-    // /api/generate fallback shape
-    if (typeof data.response === 'string') return data.response;
-    throw new Error('Ollama: unerwartetes Antwortformat');
+    let content = parseOllamaResponse(data, provider.model);
+
+    // Ollama signals truncation via done_reason === 'length'.
+    // Some older versions don't set it, so fall back to comparing the
+    // eval_count against the requested num_predict.
+    const limit = provider.maxTokens || 1500;
+    const evalCount = data.eval_count || 0;
+    const truncated = data.done_reason === 'length' || (evalCount > 0 && evalCount >= limit);
+    if (truncated) {
+        content += truncationWarning(limit, evalCount);
+    }
+    return content;
+}
+
+/**
+ * Append-friendly notice for the response box / history. Surfaces the
+ * fact that the model hit max_tokens and didn't actually finish.
+ */
+function truncationWarning(limit, generated) {
+    return [
+        '',
+        '',
+        '──────────────────────────────',
+        '⚠️ Antwort wurde am Token-Limit abgeschnitten.',
+        `   Limit: ${limit} Tokens` + (generated ? ` (generiert: ${generated})` : ''),
+        '   In Einstellungen → "Maximale Output-Tokens pro Aufruf" erhöhen.'
+    ].join('\n');
+}
+
+/**
+ * Pull a usable string out of an Ollama response.
+ *
+ * Handles all three "looks-like-success-but-isn't-content" cases that
+ * commonly trip people up:
+ *   1) /api/chat with empty assistant content (e.g. embedding-only model
+ *      mistakenly used for chat)
+ *   2) /api/chat with tool_calls instead of content
+ *   3) /api/generate shape (different field name)
+ *
+ * On real format mismatch, throw an error that includes which top-level
+ * keys ARE present + a short preview, so the user can tell what's wrong
+ * without opening DevTools.
+ */
+function parseOllamaResponse(data, modelName) {
+    // /api/chat shape — accept empty string content as valid.
+    if (data && typeof data.message === 'object' && data.message !== null) {
+        if (typeof data.message.content === 'string') {
+            const c = data.message.content;
+            if (c.length > 0) return c;
+            // Empty content but maybe tool_calls present
+            if (Array.isArray(data.message.tool_calls) && data.message.tool_calls.length > 0) {
+                return '⚙️ Das Modell hat Tool-Calls statt Text geantwortet (von Loganonymizer nicht ausgeführt):\n\n'
+                     + JSON.stringify(data.message.tool_calls, null, 2);
+            }
+            // Truly empty response — e.g. embedding-only model misused for chat,
+            // or num_predict too small. Surface a friendly message rather than
+            // crash.
+            console.warn('[Ollama] empty content from model', modelName, data);
+            return `⚠️ Ollama hat eine leere Antwort geliefert (Modell: ${modelName || '?'}).
+Mögliche Ursachen:
+  · Embedding-Modell (z. B. nomic-embed-text) statt Chat-Modell ausgewählt
+  · num_predict zu niedrig, Modell hat sofort gestoppt
+  · Modell hat genuin nichts zu sagen — Prompt anpassen`;
+        }
+    }
+
+    // /api/generate shape
+    if (typeof data?.response === 'string') return data.response;
+
+    // Echtes Format-Problem — zeig dem User, was wir bekommen haben.
+    const keys = Object.keys(data || {}).join(', ') || '(leeres Objekt)';
+    const preview = (() => {
+        try { return JSON.stringify(data).slice(0, 200); } catch { return '(nicht serialisierbar)'; }
+    })();
+    console.warn('[Ollama] unrecognized response shape', data);
+    throw new Error(`Ollama: unbekanntes Antwortformat. Top-Level-Felder: [${keys}]. Vorschau: ${preview}`);
 }
 
 /**
