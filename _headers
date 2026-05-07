@@ -1,0 +1,36 @@
+# Cloudflare Pages — Header-Konfiguration für Loganonymizer
+# https://developers.cloudflare.com/pages/configuration/headers/
+#
+# Hinweise zur CSP:
+#   * 'unsafe-inline' für script-/style-src ist nötig, weil index.html
+#     inline onclick-Handler und Style-Attribute nutzt. Das senkt CSP-
+#     Härte; Tradeoff bewusst eingegangen, um keine Build-Pipeline für
+#     ein reines Static-Tool zu erzwingen.
+#   * connect-src enthält alle KI-/Reputation-Provider und localhost:11434
+#     (Ollama). HTTP-Loopback ist hier zulässig — das ist Browser-
+#     Standardverhalten unter "Private Network Access".
+#   * font-src / style-src lassen Google Fonts (Poppins) und die
+#     Bootstrap-Icons-CDN durch.
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' http://localhost:11434 http://127.0.0.1:11434 https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.mammouth.ai https://api.virustotal.com https://www.virustotal.com https://api.abuseipdb.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+
+# CSS / JS dürfen länger gecached werden — Cache-Buster steckt in der URL (?v=…)
+/css/*
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/js/*
+  Cache-Control: public, max-age=86400, must-revalidate
+
+# index.html niemals lange cachen, sonst sehen Nutzer alte Versionen
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate

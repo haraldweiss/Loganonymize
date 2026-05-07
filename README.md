@@ -90,6 +90,52 @@ sich bei Verbindungserfolg selbst zurückzieht.
 Cache-Buster (`?v=NNN`) hängen an allen Asset-Links für deterministische
 Browser-Reloads nach Releases.
 
+## Deployment auf Cloudflare Pages
+
+Loganonymizer ist eine reine Static-Site (kein Build-Schritt) und läuft
+direkt auf Cloudflare Pages, GitHub Pages, Netlify usw. Empfohlen ist
+Cloudflare Pages, weil das mitgelieferte [`_headers`](_headers) automatisch
+sinnvolle Security- und Cache-Header setzt.
+
+### Schritte (CF Dashboard)
+
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+2. GitHub-Account verbinden, Repo `Loganonymize` auswählen
+3. Build-Settings:
+   - **Framework preset**: *None*
+   - **Build command**: leer lassen
+   - **Build output directory**: `/` (Repo-Root)
+4. **Save and Deploy** — der erste Build ist in unter einer Minute fertig.
+5. Eigene Domain (optional): *Custom domains* → URL eintragen, DNS-Eintrag
+   wird automatisch vorgeschlagen.
+
+Ab jetzt löst jeder `git push` auf `main` ein automatisches Deployment aus.
+
+### Was im _headers schon drin ist
+
+- **CSP** mit `connect-src` für alle KI-Provider (OpenAI, Anthropic, Google,
+  Mammouth, Ollama lokal) und IP-Reputation (VirusTotal, AbuseIPDB)
+- **HSTS**, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  `Permissions-Policy` ohne Camera/Mic/Geo, `frame-ancestors 'none'`
+- Cache-Strategie: Assets unter `/css` und `/js` 1 Tag, `index.html` immer
+  revalidiert (zusammen mit dem `?v=NNN`-Cache-Buster)
+
+### Ollama-Caveat unter HTTPS
+
+Wenn Loganonymizer auf einer Pages-URL liegt (`https://…pages.dev`) und
+ein Nutzer eine **lokale** Ollama-Instanz ansprechen will, muss bei diesem
+Nutzer `OLLAMA_ORIGINS` die Pages-URL enthalten. Beispiel:
+
+```bash
+launchctl setenv OLLAMA_ORIGINS \
+  "https://loganonymize.pages.dev,http://localhost,http://localhost:8765"
+killall Ollama; open -a Ollama
+```
+
+Die HTTPS→`http://localhost`-Kommunikation ist in Chrome/Edge per
+"Private Network Access" für Loopback ausdrücklich erlaubt; Firefox/Safari
+sind teils strikter — wenn's dort hakt, ist das die Stelle.
+
 ## Mitwirken
 
 Pull-Requests sind willkommen. Bitte einmal kurz [`CONTRIBUTING.md`](CONTRIBUTING.md)
