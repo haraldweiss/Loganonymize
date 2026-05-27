@@ -584,7 +584,12 @@ function isOllamaNetworkError(err) {
 
 function ollamaConnectionHint(err) {
     if (!isOllamaNetworkError(err)) return 'Ollama-Fehler: ' + err.message;
-    return `Ollama nicht erreichbar. Prüfe: (1) "ollama serve" läuft. (2) CORS — setze die Umgebungsvariable OLLAMA_ORIGINS="${location.origin}" und starte Ollama neu.`;
+    const isHttps = location.protocol === 'https:';
+    const msg = `Ollama nicht erreichbar. Prüfe: (1) "ollama serve" läuft. (2) CORS — setze die Umgebungsvariable OLLAMA_ORIGINS="${location.origin}" und starte Ollama neu.`;
+    if (isHttps) {
+        return msg + ` (3) Bei HTTPS-Seite blockt Chrome ggf. den Aufruf an http://localhost (Private Network Access). Verwende http://localhost:${location.port || '8765'} statt der HTTPS-URL, oder ergänze die ollama serve-Optionen um Access-Control-Allow-Private-Network.`;
+    }
+    return msg;
 }
 
 /**
