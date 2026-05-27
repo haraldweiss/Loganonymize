@@ -44,84 +44,63 @@ python3 -m http.server 8765
 
 ## Ollama lokal
 
-Damit der Browser von der Loganonymizer-Origin aus auf
-`http://localhost:11434` zugreifen darf, muss Ollama eine passende
-`OLLAMA_ORIGINS`-Umgebung haben:
+Damit der Browser von der Loganonymizer-Origin aus auf Ollama zugreifen
+darf, sind zwei Dinge nötig:
+
+### 1. CORS: `OLLAMA_ORIGINS` setzen
 
 ```bash
 launchctl setenv OLLAMA_ORIGINS \
-  "http://localhost,http://localhost:8765,http://127.0.0.1,http://127.0.0.1:8765"
-# Persistierend in ~/.zshrc:
-echo 'export OLLAMA_ORIGINS="http://localhost,http://localhost:8765"' >> ~/.zshrc
-# Ollama neu starten:
+  "http://localhost,http://localhost:8765,http://127.0.0.1,http://127.0.0.1:8765,http://127.0.0.1:11435"
 killall Ollama; open -a Ollama
 ```
+
+### 2. PNA-Proxy (nur bei HTTPS)
+
+Wenn Loganonymizer über **HTTPS** geladen wird (Cloudflare, VPS), blockiert
+Chrome den direkten Aufruf von `http://localhost`. Der PNA-Proxy auf Port
+`11435` umgeht das:
+
+```bash
+cp deploy/mac/ollama-pna-proxy.py ~/bin/
+cp deploy/mac/com.user.ollama-pna-proxy.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.user.ollama-pna-proxy.plist
+```
+
+Die App wechselt automatisch auf `http://127.0.0.1:11435`, wenn sie über
+HTTPS läuft.
 
 Wenn `ollama serve` nicht läuft, zeigt der KI-Provider-Tab eine
 Hilfe-Karte mit Start-Befehl, Copy-Button, optional einem
 `ollama://`-App-Open-Versuch (macOS) und einem Auto-Retry-Loop, der
 sich bei Verbindungserfolg selbst zurückzieht.
 
-### Reboot-Persistenz für `OLLAMA_ORIGINS` (macOS)
+### Reboot-Persistenz
 
-`launchctl setenv` lebt nur bis zum nächsten Reboot. Damit die Variable
-auch nach Neustart automatisch gesetzt wird, kann ein User-LaunchAgent
-beim Login einmal feuern.
+Damit **PNA-Proxy** und **OLLAMA_ORIGINS** nach einem Neustart automatisch
+verfügbar sind, liegen zwei LaunchAgents bereit:
 
-**1. Plist anlegen** unter
-`~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist`:
+#### OLLAMA_ORIGINS
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>de.<dein-handle>.ollama-origins</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/launchctl</string>
-        <string>setenv</string>
-        <string>OLLAMA_ORIGINS</string>
-        <string>http://localhost,http://localhost:8765,http://127.0.0.1,https://&lt;deine-pages-url&gt;</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <false/>
-</dict>
-</plist>
+```bash
+cp deploy/mac/com.user.ollama-origins.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.ollama-origins.plist
 ```
 
-Den `<string>`-Wert in `ProgramArguments` mit deiner Origin-Liste
-ersetzen (comma-separated, kein Leerzeichen, `https://` wenn du eine
-gehostete Loganonymizer-Variante zur lokalen Ollama sprechen lässt).
+#### PNA-Proxy
 
-**2. Aktivieren**:
+Wird automatisch via LaunchAgent gestartet und bleibt bei Abstürzen durch
+`KeepAlive` am Leben. Logs unter `~/Library/Logs/ollama-pna-proxy.log`.
+
 ```bash
-PLIST=~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
-plutil -lint "$PLIST"                           # Syntax-Check
-launchctl bootstrap gui/$(id -u) "$PLIST"       # registrieren + sofort feuern
+cp deploy/mac/ollama-pna-proxy.py ~/bin/
+cp deploy/mac/com.user.ollama-pna-proxy.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.user.ollama-pna-proxy.plist
 ```
 
-**3. Verifizieren** (einmal jetzt, oder nach Reboot):
+Nach einem Neustart genügt:
 ```bash
-launchctl getenv OLLAMA_ORIGINS                 # sollte deine Liste zeigen
-curl -sI -H "Origin: https://<deine-pages-url>" http://localhost:11434/api/tags | grep access-control
-# erwartet: Access-Control-Allow-Origin: https://<deine-pages-url>
-```
-
-**4. Origins später ändern** — Plist editieren, dann:
-```bash
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
-killall Ollama; open -a Ollama
-```
-
-**5. Entfernen**:
-```bash
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
-rm ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
+launchctl list | grep ollama-pna     # Sollte exit code 0 zeigen
 ```
 
 ## Datenschutz
@@ -177,24 +156,33 @@ Ab jetzt löst jeder `git push` auf `main` ein automatisches Deployment aus.
   Mammouth, Ollama lokal) und IP-Reputation (VirusTotal, AbuseIPDB)
 - **HSTS**, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
   `Permissions-Policy` ohne Camera/Mic/Geo, `frame-ancestors 'none'`
-- Cache-Strategie: Assets unter `/css` und `/js` 1 Tag, `index.html` immer
-  revalidiert (zusammen mit dem `?v=NNN`-Cache-Buster)
+- Cache-Strategie: Assets unter `/css` und `/js` 5 Minuten (für schnelle
+  Deployment-Zyklen), `index.html` immer revalidiert
 
-### Ollama-Caveat unter HTTPS
+### Private Network Access (PNA) – Ollama unter HTTPS
 
-Wenn Loganonymizer auf einer Pages-URL liegt (`https://…pages.dev`) und
-ein Nutzer eine **lokale** Ollama-Instanz ansprechen will, muss bei diesem
-Nutzer `OLLAMA_ORIGINS` die Pages-URL enthalten. Beispiel:
+Wenn Loganonymizer über HTTPS ausgeliefert wird (Cloudflare, VPS) und ein
+Nutzer eine **lokale** Ollama-Instanz ansprechen will, blockiert Chrome den
+`http://localhost`-Aufruf wegen **Private Network Access**. Der Browser
+fordert explizit den Header `Access-Control-Allow-Private-Network: true`.
+
+Ollama selbst setzt diesen Header nicht. Abhilfe schafft ein lokaler
+PNA-Proxy, der auf Port `11435` läuft und die fehlenden Header ergänzt:
 
 ```bash
+# Installation
+cp deploy/mac/ollama-pna-proxy.py ~/bin/
+cp deploy/mac/com.user.ollama-pna-proxy.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.user.ollama-pna-proxy.plist
+
+# OLLAMA_ORIGINS um den Proxy-Port erweitern
 launchctl setenv OLLAMA_ORIGINS \
-  "https://loganonymize.pages.dev,http://localhost,http://localhost:8765"
+  "https://<deine-app-url>,http://localhost,http://localhost:8765,http://127.0.0.1:11435"
 killall Ollama; open -a Ollama
 ```
 
-Die HTTPS→`http://localhost`-Kommunikation ist in Chrome/Edge per
-"Private Network Access" für Loopback ausdrücklich erlaubt; Firefox/Safari
-sind teils strikter — wenn's dort hakt, ist das die Stelle.
+Sobald der Proxy läuft, verwendet die App automatisch `http://127.0.0.1:11435`
+statt `http://localhost:11434`, wenn sie über HTTPS geladen wird.
 
 ## Mitwirken
 
