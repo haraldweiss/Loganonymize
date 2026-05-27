@@ -538,16 +538,6 @@ function maskKey(key) {
 // OLLAMA — live model list via /api/tags
 // ============================================================
 
-/**
- * Derive the /api/tags URL from a chat endpoint.
- * "http://localhost:11434/api/chat" → "http://localhost:11434/api/tags".
- */
-function ollamaTagsURL(chatEndpoint) {
-    if (!chatEndpoint) return 'http://localhost:11434/api/tags';
-    return chatEndpoint.replace(/\/api\/(chat|generate)\b.*$/, '/api/tags')
-                       .replace(/\/+$/, '') + (/\/api\/tags$/.test(chatEndpoint) ? '' : '');
-}
-
 async function fetchOllamaTags(chatEndpoint) {
     const url = chatEndpoint
         ? chatEndpoint.replace(/\/api\/(chat|generate)\b.*$/, '/api/tags')

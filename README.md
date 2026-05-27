@@ -147,8 +147,6 @@ rm ~/Library/LaunchAgents/de.<dein-handle>.ollama-origins.plist
 | `js/anonymizer.js` | Erkennungs-Regex und Anonymisierungs-Pipeline |
 | `js/ai.js` | API-Calls (OpenAI-kompatibel, Anthropic, Google, Ollama) |
 | `js/app.js` | UI-Wiring, Tabs, Provider-Verwaltung, Verlauf, Vorschläge |
-| `js/config.js` | Legacy-Config-Helpers (kompatibilitätshalber) |
-
 Cache-Buster (`?v=NNN`) hängen an allen Asset-Links für deterministische
 Browser-Reloads nach Releases.
 

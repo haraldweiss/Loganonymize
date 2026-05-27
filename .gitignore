@@ -8,6 +8,10 @@
 # Claude Code working directory — local-only
 .claude/
 
+# Local SSL certs (start.sh auto-generates these)
+*.pem
+*.key
+
 # Editor scratch
 *.swp
 *~
