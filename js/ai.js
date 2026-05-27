@@ -127,7 +127,8 @@ async function callGoogle(prompt, provider) {
  * Call Ollama API (local).
  */
 async function callOllama(prompt, provider) {
-    const endpoint = provider.endpoint || 'http://localhost:11434/api/chat';
+    const defaultEndpoint = location.protocol === 'https:' ? 'http://127.0.0.1:11435/api/chat' : 'http://localhost:11434/api/chat';
+    const endpoint = provider.endpoint || defaultEndpoint;
     const response = await fetch(endpoint, {
         method: 'POST',
         signal: provider.signal,

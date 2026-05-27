@@ -53,7 +53,7 @@ const PROVIDER_TYPE_DEFAULTS = {
     anthropic: { endpoint: 'https://api.anthropic.com/v1/messages',         models: ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] },
     google:    { endpoint: 'https://generativelanguage.googleapis.com/v1',  models: ['gemini-1.5-pro', 'gemini-1.5-flash'] },
     mammouth:  { endpoint: 'https://api.mammouth.ai/v1/chat/completions',   models: ['gpt-4o', 'claude-opus-4-7', 'claude-sonnet-4-6', 'gemini-1.5-pro', 'mistral-large'] },
-    ollama:    { endpoint: 'http://localhost:11434/api/chat',               models: ['llama3.2', 'llama3.1', 'mistral', 'qwen2.5'] },
+    ollama:    { endpoint: location.protocol === 'https:' ? 'http://127.0.0.1:11435/api/chat' : 'http://localhost:11434/api/chat', models: ['llama3.2', 'llama3.1', 'mistral', 'qwen2.5'] },
     custom:    { endpoint: '',                                              models: [] }
 };
 
@@ -538,9 +538,10 @@ function maskKey(key) {
 // ============================================================
 
 async function fetchOllamaTags(chatEndpoint) {
+    const defaultTags = location.protocol === 'https:' ? 'http://127.0.0.1:11435/api/tags' : 'http://localhost:11434/api/tags';
     const url = chatEndpoint
         ? chatEndpoint.replace(/\/api\/(chat|generate)\b.*$/, '/api/tags')
-        : 'http://localhost:11434/api/tags';
+        : defaultTags;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Tags-Endpoint antwortet ${res.status}`);
     const data = await res.json();
@@ -587,7 +588,7 @@ function ollamaConnectionHint(err) {
     const isHttps = location.protocol === 'https:';
     const msg = `Ollama nicht erreichbar. Prüfe: (1) "ollama serve" läuft. (2) CORS — setze die Umgebungsvariable OLLAMA_ORIGINS="${location.origin}" und starte Ollama neu.`;
     if (isHttps) {
-        return msg + ` (3) Bei HTTPS-Seite blockt Chrome ggf. den Aufruf an http://localhost (Private Network Access). Verwende http://localhost:${location.port || '8765'} statt der HTTPS-URL, oder ergänze die ollama serve-Optionen um Access-Control-Allow-Private-Network.`;
+        return msg + ` (3) Bei HTTPS blockt Chrome http://localhost (Private Network Access). Der PNA-Proxy auf 127.0.0.1:11435 umgeht das. Stelle sicher, dass ollama-pna-proxy läuft: launchctl list | grep ollama-pna`;
     }
     return msg;
 }
