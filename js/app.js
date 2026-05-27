@@ -32,13 +32,12 @@ const ABUSEIPDB_KEY_STORAGE_KEY = STORAGE_PREFIX + 'abuseipdb_api_key';
     const map = [
         ['cosanta_mappings',          STORAGE_PREFIX + 'mappings'],
         ['cosanta_blacklist',         STORAGE_PREFIX + 'blacklist'],
-        [STORAGE_PREFIX + 'settings',          STORAGE_PREFIX + 'settings'],
         ['cosanta_statistics',        STORAGE_PREFIX + 'statistics'],
-        ['cosanta_ai_providers_v2',   AI_PROVIDER_STORAGE_KEY],
-        ['cosanta_config',            STORAGE_PREFIX + 'config']
+        ['cosanta_ai_providers_v2',   AI_PROVIDER_STORAGE_KEY]
     ];
     let migrated = 0;
     for (const [oldKey, newKey] of map) {
+        if (oldKey === newKey) continue;
         const oldVal = localStorage.getItem(oldKey);
         if (oldVal !== null && localStorage.getItem(newKey) === null) {
             localStorage.setItem(newKey, oldVal);
