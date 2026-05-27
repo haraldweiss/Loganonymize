@@ -26,10 +26,10 @@
 
 # CSS / JS dürfen länger gecached werden — Cache-Buster steckt in der URL (?v=…)
 /css/*
-  Cache-Control: public, max-age=86400, must-revalidate
+  Cache-Control: public, max-age=300, must-revalidate
 
 /js/*
-  Cache-Control: public, max-age=86400, must-revalidate
+  Cache-Control: public, max-age=300, must-revalidate
 
 # index.html niemals lange cachen, sonst sehen Nutzer alte Versionen
 /index.html
