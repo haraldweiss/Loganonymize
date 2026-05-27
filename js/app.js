@@ -841,7 +841,10 @@ async function sendToAI() {
             // Mammouth is OpenAI-compatible — same client, different endpoint.
             case 'mammouth':  response = await callOpenAI(fullPrompt, legacyShape); break;
             case 'ollama':    response = await callOllama(fullPrompt, legacyShape); break;
-            default:          throw new Error('Custom-Provider noch nicht implementiert');
+            // Custom provider & any unknown type: assume OpenAI-compatible.
+            // The user configured the endpoint in the provider form, so route
+            // through callOpenAI which uses provider.endpoint directly.
+            default:          response = await callOpenAI(fullPrompt, legacyShape); break;
         }
 
         if (autoDeanon) {
