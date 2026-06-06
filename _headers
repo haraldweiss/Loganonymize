@@ -2,10 +2,9 @@
 # https://developers.cloudflare.com/pages/configuration/headers/
 #
 # Hinweise zur CSP:
-#   * 'unsafe-inline' für script-/style-src ist nötig, weil index.html
-#     inline onclick-Handler und Style-Attribute nutzt. Das senkt CSP-
-#     Härte; Tradeoff bewusst eingegangen, um keine Build-Pipeline für
-#     ein reines Static-Tool zu erzwingen.
+#   * 'unsafe-inline' ist nur noch für style-src nötig (einige inline
+#     style-Attribute). script-src hat kein 'unsafe-inline' mehr — alle
+#     Event-Handler wurden auf data-action + Delegation umgestellt.
 #   * connect-src: https: erlaubt alle HTTPS-Ziele (KI-Provider,
 #     Reputation-APIs, vom Nutzer konfigurierte Custom-Endpoints auf
 #     VPS/ Tunnel). http://localhost:* und http://127.0.0.1:* decken
@@ -22,7 +21,7 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
   Cross-Origin-Opener-Policy: same-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
 
 # CSS / JS dürfen länger gecached werden — Cache-Buster steckt in der URL (?v=…)
 /css/*

@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/styles.css?v=112">
+    <link rel="stylesheet" href="css/styles.css?v=113">
 </head>
 <body>
     <div class="app-shell">
@@ -24,7 +24,7 @@
             <div class="header-content">
                 <div class="logo-section">
                     <h1><span class="logo-glyph">🛡️</span>Loganonymizer</h1>
-                    <span class="version-badge">v103.0</span>
+                    <span class="version-badge">v104.0</span>
                 </div>
                 <p class="subtitle">Lokale Log- und Text-Anonymisierung mit KI-Anbindung</p>
             </div>
@@ -94,10 +94,10 @@
                         <div class="panel-header">
                             <h3>📝 Originaltext</h3>
                             <div class="button-group">
-                                <button onclick="pasteFromClipboard('input-text')" class="btn-icon" title="Aus Zwischenablage einfügen">
+                                <button data-action="pasteFromClipboard" data-param="input-text" class="btn-icon" title="Aus Zwischenablage einfügen">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
-                                <button onclick="clearText('input-text')" class="btn-icon" title="Text löschen">
+                                <button data-action="clearText" data-param="input-text" class="btn-icon" title="Text löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -116,11 +116,11 @@
                     </div>
 
                     <div class="editor-controls">
-                        <button onclick="anonymizeText()" class="btn-primary btn-large">
+                        <button data-action="anonymizeText" class="btn-primary btn-large">
                             <i class="bi bi-arrow-right"></i>
                             Anonymisieren
                         </button>
-                        <button onclick="swapTexts()" class="btn-icon" title="Texte tauschen">
+                        <button data-action="swapTexts" class="btn-icon" title="Texte tauschen">
                             <i class="bi bi-arrow-left-right"></i>
                         </button>
                     </div>
@@ -129,13 +129,13 @@
                         <div class="panel-header">
                             <h3>✅ Anonymisierter Text</h3>
                             <div class="button-group">
-                                <button onclick="copyToClipboard('output-text')" class="btn-icon" title="In Zwischenablage kopieren">
+                                <button data-action="copyToClipboard" data-param="output-text" class="btn-icon" title="In Zwischenablage kopieren">
                                     <i class="bi bi-clipboard-check"></i>
                                 </button>
-                                <button onclick="downloadText()" class="btn-icon" title="Als Datei herunterladen">
+                                <button data-action="downloadText" class="btn-icon" title="Als Datei herunterladen">
                                     <i class="bi bi-download"></i>
                                 </button>
-                                <button onclick="clearText('output-text')" class="btn-icon" title="Text löschen">
+                                <button data-action="clearText" data-param="output-text" class="btn-icon" title="Text löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -198,10 +198,10 @@
                     <div class="suggestions-header">
                         <h4>💡 Vorschläge für die Blacklist</h4>
                         <div class="button-group">
-                            <button type="button" onclick="analyzeForSuggestions()" class="btn-secondary btn-sm" title="Eingabetext nach möglichen Blacklist-Begriffen analysieren">
+                            <button type="button" data-action="analyzeForSuggestions" class="btn-secondary btn-sm" title="Eingabetext nach möglichen Blacklist-Begriffen analysieren">
                                 <i class="bi bi-search"></i> Analysieren
                             </button>
-                            <button type="button" id="suggestions-add-all" onclick="addAllSuggestionsToBlacklist()" class="btn-secondary btn-sm" style="display:none">
+                            <button type="button" id="suggestions-add-all" data-action="addAllSuggestionsToBlacklist" class="btn-secondary btn-sm" style="display:none">
                                 <i class="bi bi-check2-all"></i> Alle übernehmen
                             </button>
                         </div>
@@ -227,10 +227,10 @@
                         <div class="panel-header">
                             <h3>🔒 Anonymisierter Text</h3>
                             <div class="button-group">
-                                <button onclick="pasteFromClipboard('deanon-input-text')" class="btn-icon" title="Aus Zwischenablage einfügen">
+                                <button data-action="pasteFromClipboard" data-param="deanon-input-text" class="btn-icon" title="Aus Zwischenablage einfügen">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
-                                <button onclick="clearText('deanon-input-text')" class="btn-icon" title="Text löschen">
+                                <button data-action="clearText" data-param="deanon-input-text" class="btn-icon" title="Text löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -244,7 +244,7 @@
                     </div>
 
                     <div class="editor-controls">
-                        <button onclick="deanonymizeText()" class="btn-primary btn-large">
+                        <button data-action="deanonymizeText" class="btn-primary btn-large">
                             <i class="bi bi-arrow-right"></i>
                             De-Anonymisieren
                         </button>
@@ -254,10 +254,10 @@
                         <div class="panel-header">
                             <h3>✅ Original Text</h3>
                             <div class="button-group">
-                                <button onclick="copyToClipboard('deanon-output-text')" class="btn-icon" title="In Zwischenablage kopieren">
+                                <button data-action="copyToClipboard" data-param="deanon-output-text" class="btn-icon" title="In Zwischenablage kopieren">
                                     <i class="bi bi-clipboard-check"></i>
                                 </button>
-                                <button onclick="clearText('deanon-output-text')" class="btn-icon" title="Text löschen">
+                                <button data-action="clearText" data-param="deanon-output-text" class="btn-icon" title="Text löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -302,10 +302,10 @@
                             <div class="form-label-row">
                                 <label for="ai-prompt">Prompt/Anweisung</label>
                                 <div class="button-group">
-                                    <button type="button" onclick="loadPromptFromFile()" class="btn-icon" title="Prompt aus Datei laden">
+                                    <button type="button" data-action="loadPromptFromFile" class="btn-icon" title="Prompt aus Datei laden">
                                         <i class="bi bi-folder2-open"></i>
                                     </button>
-                                    <button type="button" onclick="savePromptToFile()" class="btn-icon" title="Prompt als Datei speichern">
+                                    <button type="button" data-action="savePromptToFile" class="btn-icon" title="Prompt als Datei speichern">
                                         <i class="bi bi-floppy"></i>
                                     </button>
                                 </div>
@@ -334,7 +334,7 @@
                             <small class="form-text">Original-Daten in der Antwort wiederherstellen</small>
                         </div>
 
-                        <button onclick="sendToAI()" class="btn-primary w-100">
+                        <button data-action="sendToAI" class="btn-primary w-100">
                             <i class="bi bi-send"></i>
                             An KI senden
                         </button>
@@ -344,10 +344,10 @@
                         <div class="panel-header">
                             <h3>📝 Eingabetext</h3>
                             <div class="button-group">
-                                <button onclick="pasteFromClipboard('ai-input-text')" class="btn-icon" title="Aus Zwischenablage einfügen">
+                                <button data-action="pasteFromClipboard" data-param="ai-input-text" class="btn-icon" title="Aus Zwischenablage einfügen">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
-                                <button onclick="clearText('ai-input-text')" class="btn-icon" title="Text löschen">
+                                <button data-action="clearText" data-param="ai-input-text" class="btn-icon" title="Text löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -362,7 +362,7 @@
                         <div class="panel-header mt-4">
                             <h3>💬 KI-Antwort</h3>
                             <div class="button-group">
-                                <button onclick="copyToClipboard('ai-response-text')" class="btn-icon" title="In Zwischenablage kopieren">
+                                <button data-action="copyToClipboard" data-param="ai-response-text" class="btn-icon" title="In Zwischenablage kopieren">
                                     <i class="bi bi-clipboard-check"></i>
                                 </button>
                             </div>
@@ -375,10 +375,10 @@
                             <div class="history-header">
                                 <h3>📜 Verlauf</h3>
                                 <div class="button-group">
-                                    <button type="button" onclick="exportAIHistory()" class="btn-icon" title="Verlauf als JSON exportieren">
+                                    <button type="button" data-action="exportAIHistory" class="btn-icon" title="Verlauf als JSON exportieren">
                                         <i class="bi bi-download"></i>
                                     </button>
-                                    <button type="button" onclick="clearAIHistory()" class="btn-icon" title="Verlauf leeren">
+                                    <button type="button" data-action="clearAIHistory" class="btn-icon" title="Verlauf leeren">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </div>
@@ -438,12 +438,12 @@
                             <label for="provider-models">Verfügbare Modelle (kommagetrennt)</label>
                             <div class="input-group">
                                 <input type="text" id="provider-models" class="form-control" placeholder="gpt-4, gpt-3.5-turbo">
-                                <button type="button" id="ollama-test-btn" class="btn-secondary" style="display:none" onclick="testOllamaConnection()">🔍 Ollama testen</button>
+                                <button type="button" id="ollama-test-btn" class="btn-secondary" style="display:none" data-action="testOllamaConnection">🔍 Ollama testen</button>
                             </div>
                             <div id="ollama-status" class="ollama-status" style="display:none"></div>
                         </div>
 
-                        <button onclick="addAIProvider()" class="btn-primary w-100">
+                        <button data-action="addAIProvider" class="btn-primary w-100">
                             <i class="bi bi-plus-circle"></i>
                             Provider speichern
                         </button>
@@ -469,15 +469,15 @@
                 <div class="mappings-container">
                     <div class="mappings-header">
                         <div class="button-group">
-                            <button onclick="exportMappings()" class="btn-secondary">
+                            <button data-action="exportMappings" class="btn-secondary">
                                 <i class="bi bi-download"></i>
                                 Exportieren
                             </button>
-                            <button onclick="importMappings()" class="btn-secondary">
+                            <button data-action="importMappings" class="btn-secondary">
                                 <i class="bi bi-upload"></i>
                                 Importieren
                             </button>
-                            <button onclick="clearMappings()" class="btn-danger">
+                            <button data-action="clearMappings" class="btn-danger">
                                 <i class="bi bi-trash"></i>
                                 Alle löschen
                             </button>
@@ -533,7 +533,7 @@
                                 placeholder="Begriff eingeben (z.B. Firmenname, Projektname...)"
                                 onkeypress="if(event.key==='Enter') addToBlacklist()"
                             >
-                            <button onclick="addToBlacklist()" class="btn-primary">
+                            <button data-action="addToBlacklist" class="btn-primary">
                                 <i class="bi bi-plus"></i>
                                 Hinzufügen
                             </button>
@@ -545,13 +545,13 @@
                         <div class="list-header">
                             <h3>📋 Blacklist-Einträge (<span id="blacklist-total">0</span>)</h3>
                             <div class="button-group">
-                                <button onclick="exportBlacklist()" class="btn-icon" title="Exportieren">
+                                <button data-action="exportBlacklist" class="btn-icon" title="Exportieren">
                                     <i class="bi bi-download"></i>
                                 </button>
-                                <button onclick="importBlacklist()" class="btn-icon" title="Importieren">
+                                <button data-action="importBlacklist" class="btn-icon" title="Importieren">
                                     <i class="bi bi-upload"></i>
                                 </button>
-                                <button onclick="clearBlacklist()" class="btn-icon" title="Alle löschen">
+                                <button data-action="clearBlacklist" class="btn-icon" title="Alle löschen">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -745,15 +745,15 @@
                         <h3>💾 Datenverwaltung</h3>
                         
                         <div class="button-group-vertical">
-                            <button onclick="exportAllData()" class="btn-secondary">
+                            <button data-action="exportAllData" class="btn-secondary">
                                 <i class="bi bi-download"></i>
                                 Alle Daten exportieren
                             </button>
-                            <button onclick="importAllData()" class="btn-secondary">
+                            <button data-action="importAllData" class="btn-secondary">
                                 <i class="bi bi-upload"></i>
                                 Alle Daten importieren
                             </button>
-                            <button onclick="clearAllData()" class="btn-danger">
+                            <button data-action="clearAllData" class="btn-danger">
                                 <i class="bi bi-exclamation-triangle"></i>
                                 Alle Daten löschen
                             </button>
@@ -761,11 +761,11 @@
                     </div>
 
                     <div class="button-group">
-                        <button onclick="saveSettings()" class="btn-primary">
+                        <button data-action="saveSettings" class="btn-primary">
                             <i class="bi bi-check-circle"></i>
                             Konfiguration speichern
                         </button>
-                        <button onclick="resetSettings()" class="btn-secondary">
+                        <button data-action="resetSettings" class="btn-secondary">
                             <i class="bi bi-arrow-clockwise"></i>
                             Zurücksetzen
                         </button>
@@ -779,9 +779,9 @@
         <footer class="app-footer">
             <div class="footer-content">
                 <p>© 2026 Harald Weiss · Loganonymizer ·
-                    <a href="#" onclick="showAbout(); return false;">Über</a> ·
-                    <a href="#" onclick="showHelp(); return false;">Hilfe</a> ·
-                    <a href="#" onclick="showPrivacy(); return false;">Datenschutz</a>
+                    <a href="#" data-action="showAbout">Über</a> ·
+                    <a href="#" data-action="showHelp">Hilfe</a> ·
+                    <a href="#" data-action="showPrivacy">Datenschutz</a>
                 </p>
             </div>
         </footer>
@@ -791,20 +791,16 @@
     <div id="notification-container" class="notification-container"></div>
 
     <!-- Application Scripts (cache-bust on each release) -->
-    <script src="js/utils.js?v=112"></script>
-    <script src="js/anonymizer.js?v=112"></script>
-    <script src="js/ai.js?v=112"></script>
-    <script src="js/app.js?v=112"></script>
+    <script src="js/utils.js?v=113"></script>
+    <script src="js/anonymizer.js?v=113"></script>
+    <script src="js/ai.js?v=113"></script>
+    <script src="js/blacklist.js?v=113"></script>
+    <script src="js/mappings.js?v=113"></script>
+    <script src="js/history.js?v=113"></script>
+    <script src="js/suggestions.js?v=113"></script>
+    <script src="js/analysis.js?v=113"></script>
+    <script src="js/app.js?v=113"></script>
 
-    <!-- Initialization -->
-    <script>
-        console.log('🚀 Loganonymizer v103.0');
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeApp);
-        } else {
-            initializeApp();
-        }
-    </script>
+    <script src="js/init.js?v=113"></script>
 </body>
 </html>
