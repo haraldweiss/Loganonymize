@@ -61,6 +61,33 @@
     --t-base: 220ms cubic-bezier(.4, 0, .2, 1);
 }
 
+.ai-send-preview {
+    margin: auto;
+    width: min(760px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    padding: 24px;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+}
+
+.ai-send-preview::backdrop {
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.ai-send-preview form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ai-send-preview textarea {
+    min-height: 160px;
+    font-family: monospace;
+}
+
 /* ---------- reset ---------- */
 
 *,
