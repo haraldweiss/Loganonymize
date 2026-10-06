@@ -6,14 +6,17 @@ KI-Provider-Aufruf. Daten bleiben in `localStorage` auf dem eigenen Rechner.
 
 ## Features
 
-- **Mustererkennung** für E-Mails, Telefonnummern, IBAN (mit Mod-97-Check),
+- **Mustererkennung** für E-Mails, Telefonnummern, IBAN (mit Länder-Längenprüfung und Mod-97-Check),
   Kreditkartennummern (Luhn), Adressen, Personennamen und Organisationen.
 - **Blacklist** für eigene, immer zu maskierende Begriffe (Projektnamen,
   interne Bezeichner). Beim ersten Befüllen werden Vorschläge aus dem
   Eingabetext automatisch generiert (Tokens, die nicht durch die
   Standard-Erkennung abgedeckt sind).
-- **Verlustfreie De-Anonymisierung** über die gespeicherten Mappings.
-- **KI-Analyse** mit Auto-Anonymisierung vor dem Senden und
+- **De-Anonymisierung** über gespeicherte Mappings mit eindeutigen Tokens wie
+  `[[EMAIL_1]]`. Die Wiederherstellung erfolgt in einem Durchlauf; isolierte
+  Platzhalter aus älteren Versionen werden weiter unterstützt.
+- **KI-Analyse** mit Auto-Anonymisierung von Prompt und Eingabetext sowie
+  einer Vorschau der vollständigen Anfrage zur Bestätigung vor dem Senden und
   Auto-De-Anonymisierung der Antwort. Unterstützte Provider:
   - ChatGPT (OpenAI)
   - Claude (Anthropic)
@@ -112,7 +115,9 @@ launchctl list | grep ollama-pna     # Sollte exit code 0 zeigen
   vertrauenswürdigen Geräten verwenden.
 - Bei einem KI-Aufruf gehen die (vorzugsweise anonymisierten) Daten an
   den jeweils gewählten Provider. Auto-Anonymisierung ist standardmäßig
-  aktiv, lässt sich aber im Analyse-Tab pro Aufruf abschalten.
+  aktiv, lässt sich aber im Analyse-Tab pro Aufruf abschalten. Jede Anfrage
+  muss in der Vorschau bestätigt werden. Mustererkennung kann sensible
+  Angaben übersehen; den angezeigten Text vor dem Senden prüfen.
 - Backups via *Einstellungen → Alle Daten exportieren* enthalten **keine**
   API-Keys; der Provider-Eintrag wird mit leerem `apiKey` exportiert.
 
@@ -183,6 +188,18 @@ killall Ollama; open -a Ollama
 
 Sobald der Proxy läuft, verwendet die App automatisch `http://127.0.0.1:11435`
 statt `http://localhost:11434`, wenn sie über HTTPS geladen wird.
+
+## Tests
+
+Mit Node.js 22 oder neuer, ohne zusätzliche Pakete:
+
+```bash
+node --test tests/*.test.cjs
+```
+
+Die Tests prüfen die JavaScript-Syntax, Anonymisierungs-Roundtrips,
+IBAN-Erkennung und den KI-Versand mit simulierten Netzwerkaufrufen.
+GitHub Actions führt dieselbe Suite bei Pushes und Pull Requests aus.
 
 ## Mitwirken
 

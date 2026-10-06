@@ -242,7 +242,7 @@ function deanonymizeText() {
 function countByType(mappings) {
     const counts = {};
     for (const placeholder of Object.keys(mappings)) {
-        const type = placeholder.split('_')[0].toLowerCase();
+        const type = placeholder.replace(/^\[\[/, '').split('_')[0].toLowerCase();
         counts[type] = (counts[type] || 0) + 1;
     }
     return counts;
@@ -807,23 +807,26 @@ async function sendToAI() {
     const provider = loadAIProviders().find(p => p.id === providerId);
     if (!provider) { showNotification('Provider nicht gefunden', 'error'); return; }
 
-    let textToSend = inputText;
-    if (autoAnon && inputText) {
-        textToSend = runAnonymization(inputText).anonymized;
-    }
-
-    const fullPrompt = promptText
-        ? `${promptText}\n\n${textToSend}`
-        : textToSend;
+    const originalPrompt = promptText
+        ? `${promptText}\n\n${inputText}`
+        : inputText;
 
     clearChildren(responseBox);
-    responseBox.appendChild(el('p', { class: 'text-muted' }, '⏳ Anfrage läuft… (Klick auf „Abbrechen" stoppt sie)'));
+    responseBox.appendChild(el('p', { class: 'text-muted' }, 'Anfrage wird zur Prüfung vorbereitet…'));
 
     setSendButtonAborting(true);
     currentAIAbort = new AbortController();
     const t0 = performance.now();
 
     try {
+        const fullPrompt = autoAnon ? runAnonymization(originalPrompt).anonymized : originalPrompt;
+        if (!await confirmAIRequest(provider, model, fullPrompt, autoAnon, currentAIAbort.signal)) {
+            responseBox.textContent = 'Anfrage abgebrochen. Es wurde nichts gesendet.';
+            return;
+        }
+        if (currentAIAbort.signal.aborted) return;
+        clearChildren(responseBox);
+        responseBox.appendChild(el('p', { class: 'text-muted' }, '⏳ Anfrage läuft… (Klick auf „Abbrechen" stoppt sie)'));
         const maxTokens = Number(getSettings().aiMaxTokens) || 1500;
         const legacyShape = {
             providerId: provider.type,
@@ -899,13 +902,48 @@ async function sendToAI() {
     }
 }
 
+/** Show the exact user-message payload; canceling never calls a provider. */
+function confirmAIRequest(provider, model, payload, autoAnon, signal) {
+    const dialog = document.getElementById('ai-send-preview');
+    if (!dialog || typeof dialog.showModal !== 'function') {
+        throw new Error('Die Anfrage-Vorschau ist in diesem Browser nicht verfügbar. Es wurde nichts gesendet.');
+    }
+    document.getElementById('ai-preview-destination').textContent = `${provider.name} · ${model}`;
+    document.getElementById('ai-preview-payload').value = payload;
+    document.getElementById('ai-preview-status').textContent = autoAnon
+        ? 'Prompt und Eingabetext wurden mit Ihren Erkennungseinstellungen anonymisiert. Prüfen Sie den Text: Mustererkennung kann sensible Angaben übersehen.'
+        : 'Automatische Anonymisierung ist ausgeschaltet. Der Text wird unverändert gesendet.';
+    dialog.returnValue = 'cancel';
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            dialog.removeEventListener('close', onClose);
+            signal.removeEventListener('abort', onAbort);
+            document.getElementById('ai-preview-payload').value = '';
+        };
+        const onClose = () => {
+            const approved = dialog.returnValue === 'send' && !signal.aborted;
+            cleanup();
+            resolve(approved);
+        };
+        const onAbort = () => dialog.close('cancel');
+        dialog.addEventListener('close', onClose, { once: true });
+        signal.addEventListener('abort', onAbort, { once: true });
+        try {
+            dialog.showModal();
+            if (signal.aborted) onAbort();
+        } catch (error) {
+            cleanup();
+            reject(error);
+        }
+    });
+}
+
 /**
  * Swap the "An KI senden" button between its two states. Finds the
- * button by its onclick attribute so we don't depend on a fragile id.
+ * button by its delegated action attribute.
  */
 function setSendButtonAborting(aborting) {
-    const btn = Array.from(document.querySelectorAll('#ai-analysis button'))
-        .find(b => /sendToAI/.test(b.getAttribute('onclick') || ''));
+    const btn = document.querySelector('[data-action="sendToAI"]');
     if (!btn) return;
     if (aborting) {
         btn.dataset.original = btn.innerHTML;
@@ -1096,7 +1134,7 @@ function showHelp() {
         '',
         '• Anonymisieren: Text einfügen → Anonymisieren',
         '• De-Anonymisieren: Platzhalter-Text einfügen → De-Anonymisieren',
-        '• KI-Analyse: Provider konfigurieren, dann Text + Prompt senden',
+        '• KI-Analyse: Provider konfigurieren, Prompt + Text eingeben, Anfrage-Vorschau prüfen und bestätigen',
         '• Blacklist: Begriffe, die immer anonymisiert werden',
         '• Zuordnungen: Übersicht aller Mappings'
     ].join('\n'));

@@ -84,10 +84,48 @@ function detectPhones(text) {
  * @param {string} text - Text to analyze
  * @returns {Array} Array of detected IBANs
  */
+// SWIFT IBAN Registry, release 103 (September 2026), country lengths.
+// https://www.swift.com/swift-resource/9606/download
+// Length validation prevents a checksum-valid prefix from leaking trailing digits.
+const IBAN_LENGTHS = Object.freeze({
+    AD: 24, AE: 23, AL: 28, AT: 20, AZ: 28, BA: 20, BE: 16, BG: 22,
+    BH: 22, BI: 27, BR: 29, BY: 28, CH: 21, CR: 22, CY: 28, CZ: 24,
+    DE: 22, DJ: 27, DK: 18, DO: 28, EE: 20, EG: 29, ES: 24, FI: 18,
+    FK: 18, FO: 18, FR: 27, GB: 22, GE: 22, GI: 23, GL: 18, GR: 27,
+    GT: 28, HN: 28, HR: 21, HU: 28, IE: 22, IL: 23, IQ: 23, IS: 26,
+    IT: 27, JO: 30, KW: 30, KZ: 20, LB: 28, LC: 32, LI: 21, LT: 20,
+    LU: 20, LV: 21, LY: 25, MC: 27, MD: 24, ME: 22, MK: 19, MN: 20,
+    MR: 27, MT: 31, MU: 30, NI: 28, NL: 18, NO: 15, OM: 23, PK: 24,
+    PL: 28, PS: 29, PT: 25, QA: 29, RO: 24, RS: 22, RU: 33, SA: 24,
+    SC: 31, SD: 18, SE: 24, SI: 19, SK: 24, SM: 27, SO: 23, ST: 25,
+    SV: 28, TL: 23, TN: 24, TR: 26, UA: 29, VA: 22, VG: 24, XK: 20,
+    YE: 30,
+});
+
 function detectIBANs(text) {
-    const ibanPattern = /\b[A-Z]{2}\d{2}\s?(?:\d{4}\s?){3,7}\d{1,4}\b/g;
-    const candidates = text.match(ibanPattern) || [];
-    return [...new Set(candidates.filter(isValidIBAN))];
+    const found = new Set();
+    const starts = /\b[A-Z]{2}\d{2}/gi;
+    let match;
+    while ((match = starts.exec(text)) !== null) {
+        const requiredLength = IBAN_LENGTHS[match[0].slice(0, 2).toUpperCase()];
+        if (!requiredLength) continue;
+        let compactLength = 4;
+        for (let end = starts.lastIndex; end < text.length; end++) {
+            const ch = text[end];
+            if (ch === ' ' || ch === '\t') continue;
+            if (!/[A-Z0-9]/i.test(ch) || ++compactLength > requiredLength) break;
+            // Stop at a valid boundary rather than greedily consuming prose
+            // after a printed IBAN. Never join values across log lines.
+            if (compactLength === requiredLength && !/[A-Z0-9_]/i.test(text[end + 1] || '')) {
+                const candidate = text.slice(match.index, end + 1);
+                if (isValidIBAN(candidate)) {
+                    found.add(candidate);
+                    break;
+                }
+            }
+        }
+    }
+    return [...found];
 }
 
 /**
@@ -97,6 +135,7 @@ function detectIBANs(text) {
 function isValidIBAN(iban) {
     const compact = iban.replace(/\s+/g, '').toUpperCase();
     if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(compact)) return false;
+    if (IBAN_LENGTHS[compact.slice(0, 2)] !== compact.length) return false;
     const rearranged = compact.slice(4) + compact.slice(0, 4);
     const numeric = rearranged.replace(/[A-Z]/g, c => (c.charCodeAt(0) - 55).toString());
     let remainder = 0;
@@ -299,6 +338,7 @@ function runAnonymization(text) {
         for (const t of types) {
             const prefix = t.toUpperCase() + '_';
             counters[t] = Object.keys(existingMappings)
+                .map(k => k.replace(/^\[\[|\]\]$/g, ''))
                 .filter(k => k.startsWith(prefix))
                 .map(k => parseInt(k.slice(prefix.length), 10))
                 .filter(n => Number.isFinite(n))
@@ -313,17 +353,26 @@ function runAnonymization(text) {
         }
 
         function replaceValue(originalValue, type) {
-            if (!originalValue || originalValue.trim() === '') return;
+            if (!originalValue || originalValue.trim() === '' || !result.includes(originalValue)) return;
 
             const existingPlaceholder = reverseLookup.get(originalValue);
-            if (existingPlaceholder) {
+            const parts = result.split(originalValue);
+            const touchesIdentifier = parts.some((part, index) => index < parts.length - 1
+                && ((index > 0 && part === '') || /[\p{L}\p{N}_]/u.test(part.slice(-1))
+                    || /[\p{L}\p{N}_]/u.test(parts[index + 1].charAt(0))));
+            const canReuse = existingPlaceholder && (existingPlaceholder.startsWith('[[') || !touchesIdentifier);
+            if (canReuse) {
                 logMessage('DEBUG', `Reusing existing mapping: ${originalValue} → ${existingPlaceholder}`);
                 result = result.split(originalValue).join(existingPlaceholder);
                 return;
             }
 
-            counters[type]++;
-            const placeholder = `${type.toUpperCase()}_${counters[type]}`;
+            let placeholder;
+            do {
+                counters[type]++;
+                placeholder = `[[${type.toUpperCase()}_${counters[type]}]]`;
+            } while (text.includes(placeholder) || Object.hasOwn(updatedMappings, placeholder)
+                || Object.values(updatedMappings).some(value => String(value).includes(placeholder)));
 
             updatedMappings[placeholder] = originalValue;
             newMappings[placeholder] = originalValue;
@@ -358,31 +407,31 @@ function runAnonymization(text) {
         // phone heuristic gets a chance to misread them.
         if (settings.detectIPs) {
             logMessage('DEBUG', 'Detecting IPs...');
-            const ips = detectIPs(result);
+            const ips = detectIPs(result).sort((a, b) => b.length - a.length);
             ips.forEach(ip => replaceValue(ip, 'ip'));
         }
 
         if (settings.detectFiles) {
             logMessage('DEBUG', 'Detecting files...');
-            const files = detectFiles(result);
+            const files = detectFiles(result).sort((a, b) => b.length - a.length);
             files.forEach(f => replaceValue(f, 'file'));
         }
 
         if (settings.detectIBAN) {
             logMessage('DEBUG', 'Detecting IBANs...');
-            const ibans = detectIBANs(result);
+            const ibans = detectIBANs(result).sort((a, b) => b.length - a.length);
             ibans.forEach(iban => replaceValue(iban, 'account'));
         }
 
         if (settings.detectCreditCards) {
             logMessage('DEBUG', 'Detecting credit cards...');
-            const creditCards = detectCreditCards(result);
+            const creditCards = detectCreditCards(result).sort((a, b) => b.length - a.length);
             creditCards.forEach(cc => replaceValue(cc, 'creditcard'));
         }
 
         if (settings.detectEmails) {
             logMessage('DEBUG', 'Detecting emails...');
-            const emails = detectEmails(result);
+            const emails = detectEmails(result).sort((a, b) => b.length - a.length);
             emails.forEach(email => replaceValue(email, 'email'));
         }
 
@@ -391,7 +440,7 @@ function runAnonymization(text) {
         // following capitalized word.
         if (settings.detectAddresses) {
             logMessage('DEBUG', 'Detecting addresses...');
-            const addresses = detectAddresses(result);
+            const addresses = detectAddresses(result).sort((a, b) => b.length - a.length);
             addresses.forEach(addr => replaceValue(addr, 'location'));
         }
 
@@ -399,13 +448,13 @@ function runAnonymization(text) {
         // as just the personal name "Acme".
         if (settings.detectOrganizations) {
             logMessage('DEBUG', 'Detecting organizations...');
-            const orgs = detectOrganizations(result);
+            const orgs = detectOrganizations(result).sort((a, b) => b.length - a.length);
             orgs.forEach(org => replaceValue(org, 'organization'));
         }
 
         if (settings.detectPersons) {
             logMessage('DEBUG', 'Detecting person names...');
-            const names = detectPersonNames(result);
+            const names = detectPersonNames(result).sort((a, b) => b.length - a.length);
             names.forEach(name => replaceValue(name, 'person'));
         }
 
@@ -413,12 +462,14 @@ function runAnonymization(text) {
         // it only on text that's already had its structured numbers consumed.
         if (settings.detectPhones) {
             logMessage('DEBUG', 'Detecting phone numbers...');
-            const phones = detectPhones(result);
+            const phones = detectPhones(result).sort((a, b) => b.length - a.length);
             phones.forEach(phone => replaceValue(phone, 'phone'));
         }
 
         // Save updated mappings
-        saveMappings(updatedMappings);
+        if (!saveMappings(updatedMappings)) {
+            throw new Error('Zuordnungen konnten nicht gespeichert werden. Es wird nichts gesendet.');
+        }
         
         const newMappingCount = Object.keys(newMappings).length;
         logMessage('INFO', `Anonymization completed: ${newMappingCount} new mappings created`);
@@ -454,18 +505,19 @@ function runDeanonymization(text) {
         }
 
         const mappings = loadMappings();
-        let result = text;
-        let replacements = 0;
-
-        // Replace all placeholders with original values
-        Object.keys(mappings).forEach(placeholder => {
-            const originalValue = mappings[placeholder];
-            if (result.includes(placeholder)) {
-                result = result.split(placeholder).join(originalValue);
-                replacements++;
-                logMessage('DEBUG', `Replaced: ${placeholder} → ${originalValue}`);
-            }
+        const replaced = new Set();
+        const keys = Object.keys(mappings).filter(key => key.length > 0).sort((a, b) => b.length - a.length);
+        const escapedKeys = keys.map(key => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        // A single pass prevents restored values from being interpreted again.
+        // Unknown wrapped tokens stay intact; legacy tokens match whole identifiers.
+        const pattern = new RegExp('\\[\\[[A-Z]+_\\d+\\]\\]|(?<![\\p{L}\\p{N}_])(?:'
+            + escapedKeys.join('|') + ')(?![\\p{L}\\p{N}_])', 'gu');
+        const result = keys.length === 0 ? text : text.replace(pattern, placeholder => {
+            if (!Object.hasOwn(mappings, placeholder)) return placeholder;
+            replaced.add(placeholder);
+            return String(mappings[placeholder]);
         });
+        const replacements = replaced.size;
 
         logMessage('INFO', `De-anonymization completed: ${replacements} replacements made`);
         
