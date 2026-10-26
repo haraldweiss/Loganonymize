@@ -329,3 +329,4 @@ function saveIpReputationKeys() {
     else       localStorage.removeItem(VT_KEY_STORAGE_KEY);
     if (abuse) localStorage.setItem(ABUSEIPDB_KEY_STORAGE_KEY, abuse);
     else       localStorage.removeItem(ABUSEIPDB_KEY_STORAGE_KEY);
+}

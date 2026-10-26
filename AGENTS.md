@@ -113,8 +113,8 @@ For `_headers` / CSP / PNA changes, always include a manual test description.
 ### 2026-10-26 — Repository maintenance files
 
 - Imported the supplied security/community policies where applicable and added Dependabot configuration against the actual manifest paths. See README community links.
-- The new Security headers workflow enforces `_headers` presence plus CSP and X-Frame-Options. There is no npm manifest, so npm updates and unconfigured npm linters are omitted.
-- Follow-up: main has pre-existing incomplete functions at the ends of `js/analysis.js` and `js/history.js` (`node --check` fails). Minimal fixes and regression tests already exist on `codex/loganonymize-reliability`; review that branch separately.
+- The new workflow runs JavaScript regression tests and enforces `_headers` presence plus CSP and X-Frame-Options. There is no npm manifest, so npm updates and unconfigured npm linters are omitted.
+- Completed the missing closing brace in `saveIpReputationKeys()` and restored `truncate()` for history previews. All ten browser scripts parse; 12 Node regression tests cover parsing, preview truncation and reputation-key persistence. CI runs the tests alongside header checks; changed scripts use cache version 114. The broader `codex/loganonymize-reliability` branch remains separate.
 - Validation: Dependabot JSON schema and manifest paths, actionlint for new workflows, and execution of each new workflow run step. No production deployment.
 
 

@@ -1,4 +1,4 @@
-name: Security headers
+name: JavaScript regression tests and security headers
 
 on:
   push:
@@ -15,6 +15,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run JavaScript regression tests
+        run: node --test tests/*.test.cjs
 
       - name: Check for security headers
         run: |
