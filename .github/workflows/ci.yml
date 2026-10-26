@@ -1,0 +1,23 @@
+name: Security headers
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for security headers
+        run: |
+          test -f _headers
+          grep -q '^[[:space:]]*X-Frame-Options:' _headers
+          grep -q '^[[:space:]]*Content-Security-Policy:' _headers

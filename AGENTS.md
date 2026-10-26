@@ -110,6 +110,14 @@ For `_headers` / CSP / PNA changes, always include a manual test description.
 
 ## 7. Handoff zone (free-form, append-only)
 
+### 2026-10-26 — Repository maintenance files
+
+- Imported the supplied security/community policies where applicable and added Dependabot configuration against the actual manifest paths. See README community links.
+- The new Security headers workflow enforces `_headers` presence plus CSP and X-Frame-Options. There is no npm manifest, so npm updates and unconfigured npm linters are omitted.
+- Follow-up: main has pre-existing incomplete functions at the ends of `js/analysis.js` and `js/history.js` (`node --check` fails). Minimal fixes and regression tests already exist on `codex/loganonymize-reliability`; review that branch separately.
+- Validation: Dependabot JSON schema and manifest paths, actionlint for new workflows, and execution of each new workflow run step. No production deployment.
+
+
 <!-- Example:
 ### 2026-05-27 — opencode dead-code purge
 - Removed config.js entirely (-116 lines)

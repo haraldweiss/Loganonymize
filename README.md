@@ -198,3 +198,8 @@ Die AGPL stellt sicher, dass auch netzbasierte Bereitstellungen (z. B. eine
 gehostete Loganonymizer-Variante als Web-Service) den Quellcode ihrer
 Modifikationen weitergeben müssen. Ideen und Konzepte sind durch keine
 Lizenz schützbar.
+
+
+## Community and maintenance
+
+[Security policy](SECURITY.md) · [Dependency updates](.github/dependabot.yml).
