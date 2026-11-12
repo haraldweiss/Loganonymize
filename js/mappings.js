@@ -59,7 +59,7 @@ function renderMappings() {
     }
 
     filtered.forEach(([placeholder, original]) => {
-        const type = placeholder.split('_')[0];
+        const type = placeholder.replace(/^\[\[/, '').split('_')[0];
         const tr = el('tr', {},
             el('td', {}, el('span', { class: 'badge bg-info' }, type)),
             el('td', {}, el('code', {}, placeholder)),

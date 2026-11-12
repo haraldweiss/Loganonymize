@@ -136,3 +136,12 @@ example files, and password-bearing commands. Existing history was audited
 separately; this CI job is not a claim that historical credentials are safe.
 If a credential was committed, revoke or rotate it before considering the leak
 resolved. Do not print secret values in scan logs, reviews, or handoffs.
+
+### 2026-11-12 — Reliability PR #3 conflict resolution
+
+- Combined PR's reversible redaction and exact-payload approval with main's
+  startup repairs, header/security checks and regression tests. Scripts use v115.
+- Preserve Unicode horizontal spaces in printed IBANs (NBSP, narrow NBSP,
+  thin space) while never stitching account numbers across log lines.
+- Added regression coverage for Unicode spaces and line separators. Browser
+  checks use synthetic data and mock all provider calls; no real AI calls.
