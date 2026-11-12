@@ -215,3 +215,24 @@ Die AGPL stellt sicher, dass auch netzbasierte Bereitstellungen (z. B. eine
 gehostete Loganonymizer-Variante als Web-Service) den Quellcode ihrer
 Modifikationen weitergeben müssen. Ideen und Konzepte sind durch keine
 Lizenz schützbar.
+
+
+## Community and maintenance
+
+[Security policy](SECURITY.md) · [Dependency updates](.github/dependabot.yml).
+
+
+### Regression checks
+
+Run `node --test tests/*.test.cjs` with Node.js 22 or newer. The suite checks every browser script for syntax errors and exercises history preview truncation and reputation-key persistence. GitHub Actions runs these checks and verifies the security-header configuration on pull requests and pushes to main.
+
+### Coding-agent credential safety (2026-11-09)
+
+Local Claude permission rules and saved agent transcripts may contain literal
+credentials. Keep them outside Git; shared `.claude/settings.json` must use
+variable references rather than secrets. `Secret safety` CI rejects tracked local
+agent state and scans introduced commits with Gitleaks, including documentation,
+example files, and password-bearing commands. Existing history was audited
+separately; this CI job is not a claim that historical credentials are safe.
+If a credential was committed, revoke or rotate it before considering the leak
+resolved. Do not print secret values in scan logs, reviews, or handoffs.

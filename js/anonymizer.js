@@ -112,7 +112,7 @@ function detectIBANs(text) {
         let compactLength = 4;
         for (let end = starts.lastIndex; end < text.length; end++) {
             const ch = text[end];
-            if (ch === ' ' || ch === '\t') continue;
+            if (/[\p{Zs}\t]/u.test(ch)) continue;
             if (!/[A-Z0-9]/i.test(ch) || ++compactLength > requiredLength) break;
             // Stop at a valid boundary rather than greedily consuming prose
             // after a printed IBAN. Never join values across log lines.

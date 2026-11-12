@@ -110,6 +110,14 @@ For `_headers` / CSP / PNA changes, always include a manual test description.
 
 ## 7. Handoff zone (free-form, append-only)
 
+### 2026-10-26 — Repository maintenance files
+
+- Imported the supplied security/community policies where applicable and added Dependabot configuration against the actual manifest paths. See README community links.
+- The new workflow runs JavaScript regression tests and enforces `_headers` presence plus CSP and X-Frame-Options. There is no npm manifest, so npm updates and unconfigured npm linters are omitted.
+- Completed the missing closing brace in `saveIpReputationKeys()` and restored `truncate()` for history previews. All ten browser scripts parse; 12 Node regression tests cover parsing, preview truncation and reputation-key persistence. CI runs the tests alongside header checks; changed scripts use cache version 114. The broader `codex/loganonymize-reliability` branch remains separate.
+- Validation: Dependabot JSON schema and manifest paths, actionlint for new workflows, and execution of each new workflow run step. No production deployment.
+
+
 <!-- Example:
 ### 2026-05-27 — opencode dead-code purge
 - Removed config.js entirely (-116 lines)
@@ -117,3 +125,23 @@ For `_headers` / CSP / PNA changes, always include a manual test description.
 - Cache-buster bumped to v112
 - Did NOT test the Custom provider path manually — should be smoke-tested
 -->
+
+### Coding-agent credential safety (2026-11-09)
+
+Local Claude permission rules and saved agent transcripts may contain literal
+credentials. Keep them outside Git; shared `.claude/settings.json` must use
+variable references rather than secrets. `Secret safety` CI rejects tracked local
+agent state and scans introduced commits with Gitleaks, including documentation,
+example files, and password-bearing commands. Existing history was audited
+separately; this CI job is not a claim that historical credentials are safe.
+If a credential was committed, revoke or rotate it before considering the leak
+resolved. Do not print secret values in scan logs, reviews, or handoffs.
+
+### 2026-11-12 — Reliability PR #3 conflict resolution
+
+- Combined PR's reversible redaction and exact-payload approval with main's
+  startup repairs, header/security checks and regression tests. Scripts use v115.
+- Preserve Unicode horizontal spaces in printed IBANs (NBSP, narrow NBSP,
+  thin space) while never stitching account numbers across log lines.
+- Added regression coverage for Unicode spaces and line separators. Browser
+  checks use synthetic data and mock all provider calls; no real AI calls.

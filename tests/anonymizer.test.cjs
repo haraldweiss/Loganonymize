@@ -95,3 +95,20 @@ test('adjacent legacy blacklist replacements remain reversible', () => {
     const result = context.runAnonymization('secretsecret');
     assert.equal(context.runDeanonymization(result.anonymized).deanonymized, 'secretsecret');
 });
+
+for (const separator of ['\u00a0', '\u202f', '\u2009']) {
+    test('redacts and restores IBAN grouped with Unicode space U+' + separator.codePointAt(0).toString(16), () => {
+        const { context } = createApp({ settings: { detectPhones: false } });
+        const iban = 'DE89 3704 0044 0532 0130 00'.replaceAll(' ', separator);
+        assert.deepEqual(Array.from(context.detectIBANs(iban)), [iban]);
+        const result = context.runAnonymization(iban);
+        assert.ok(!result.anonymized.includes('3704'));
+        assert.equal(context.runDeanonymization(result.anonymized).deanonymized, iban);
+    });
+}
+for (const separator of ['\r', '\n', '\u2028', '\u2029']) {
+    test('does not join IBAN fragments across line separator U+' + separator.codePointAt(0).toString(16), () => {
+        const { context } = createApp();
+        assert.deepEqual(Array.from(context.detectIBANs('DE89 3704' + separator + '0044 0532 0130 00')), []);
+    });
+}
